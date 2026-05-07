@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import type { Components } from "react-markdown";
-import { Download, Clock, BookOpen, ChevronUp } from "lucide-react";
+import { Download, Clock, ChevronUp } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

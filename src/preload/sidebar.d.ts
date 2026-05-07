@@ -59,6 +59,15 @@ type HomeAgentRunPayload = {
   messageId: string;
 };
 
+type MutateRunResult =
+  | {
+      ok: true;
+      message: string;
+      js: string;
+      executionResult: unknown;
+    }
+  | { ok: false; error: string };
+
 interface SidebarAPI {
   sendChatMessage: (
     request: ChatRequest | Pick<ChatRequest, "message" | "messageId">
@@ -87,6 +96,10 @@ interface SidebarAPI {
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
 
   agentStop: () => Promise<boolean>;
+
+  mutateRun: (
+    instruction: string
+  ) => Promise<MutateRunResult>;
 
   openAgentReportTab: (
     reportId: string

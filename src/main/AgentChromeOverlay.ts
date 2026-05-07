@@ -111,25 +111,25 @@ export class AgentChromeOverlay {
     return view;
   }
 
-  private createBarView(): WebContentsView {
-    const view = new WebContentsView({
-      webPreferences: {
-        preload: join(__dirname, "../preload/agentOverlay.js"),
-        transparent: true,
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: false,
-      },
-    });
-    setWebContentsTransparentBg(view.webContents, "#00000000");
-    view.webContents.setAudioMuted(true);
-    this.loadOverlayPage(view, "agent-overlay/bar/", [
-      "agent-overlay",
-      "bar",
-      "index.html",
-    ]);
-    return view;
-  }
+  // private createBarView(): WebContentsView {
+  //   const view = new WebContentsView({
+  //     webPreferences: {
+  //       preload: join(__dirname, "../preload/agentOverlay.js"),
+  //       transparent: true,
+  //       nodeIntegration: false,
+  //       contextIsolation: true,
+  //       sandbox: false,
+  //     },
+  //   });
+  //   setWebContentsTransparentBg(view.webContents, "#00000000");
+  //   view.webContents.setAudioMuted(true);
+  //   this.loadOverlayPage(view, "agent-overlay/bar/", [
+  //     "agent-overlay",
+  //     "bar",
+  //     "index.html",
+  //   ]);
+  //   return view;
+  // }
 
   /** Keep overlays above newly created tab views. */
   raiseAboveTabs(): void {

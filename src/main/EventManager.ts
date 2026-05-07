@@ -4,6 +4,7 @@ import type { Window } from "./Window";
 import { isHomePageUrl } from "./homePage";
 import { getReportViewerPageUrl, isReportPageUrl } from "./reportPage";
 import { loadAgentReport } from "./agent/agentReportStorage";
+import { runPageMutation } from "./agent/mutateRunner";
 import { AgentRunner } from "./AgentRunner";
 
 export class EventManager {
@@ -277,6 +278,24 @@ export class EventManager {
       this.mainWindow.setAgentOverlayActive(false);
       this.mainWindow.focusActiveTabContents();
       return true;
+    });
+
+    ipcMain.handle("mutate-run", async (_, instruction: unknown) => {
+      const trimmed = String(instruction ?? "").trim();
+      if (!trimmed) {
+        return { ok: false as const, error: "empty_mutate_instruction" };
+      }
+      const tab = this.mainWindow.activeTab;
+      if (!tab) {
+        return { ok: false as const, error: "no_active_tab" };
+      }
+      if (isHomePageUrl(tab.url)) {
+        return { ok: false as const, error: "mutate_unsupported_home" };
+      }
+      if (isReportPageUrl(tab.url)) {
+        return { ok: false as const, error: "mutate_unsupported_report" };
+      }
+      return runPageMutation({ tab, instruction: trimmed });
     });
 
     ipcMain.handle("agent-report-get", async (event, id: string) => {

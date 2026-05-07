@@ -13,6 +13,7 @@ import {
   FileText,
   ListOrdered,
   Loader2,
+  Paintbrush,
   XCircle,
 } from "lucide-react";
 import { Button } from "@common/components/Button";
@@ -113,6 +114,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   /** Dedicated text for the bottom “what next?” field only (not synced to the request card). */
   const [composer, setComposer] = useState("");
   const [composerFocused, setComposerFocused] = useState(false);
+  /** Redesign (page mutate) — toggle in header; send uses mutate-run. */
+  const [redesignActive, setRedesignActive] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -123,9 +126,70 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     return "idle";
   }, [running, runHadError, conclusion, steps.length]);
 
+  const runRedesignMutation = useCallback(async (instruction: string) => {
+    const trimmed = instruction.trim();
+    if (!trimmed) {
+      setTechnicalLog((prev) => [
+        ...prev,
+        "Redesign mode needs instructions in the box below.",
+      ]);
+      setRunHadError(true);
+      setConclusion("Describe what you want changed on this page.");
+      return false;
+    }
+
+    setSteps([]);
+    setTechnicalLog([`[redesign] ${trimmed}`]);
+    setConclusion(null);
+    setReportLinks([]);
+    setReportGenerating(false);
+    setReportError(null);
+    setRunHadError(false);
+    setGoal(`Redesign — ${trimmed}`);
+    setStepsExpanded(false);
+    setRunning(true);
+
+    try {
+      const res = await window.sidebarAPI.mutateRun(trimmed);
+      if (!res.ok) {
+        setTechnicalLog((prev) => [...prev, `[redesign] ERROR: ${res.error}`]);
+        setRunHadError(true);
+        setConclusion(`Redesign failed: ${res.error}`);
+        return false;
+      }
+
+      setSteps([
+        {
+          step: 1,
+          label: "Redesigned the current page",
+          raw: JSON.stringify({
+            action: "redesign",
+            instruction: trimmed,
+            jsChars: res.js.length,
+          }),
+        },
+      ]);
+      setTechnicalLog((prev) => [
+        ...prev,
+        `[redesign] ${res.message}`,
+        `[redesign] generated ${res.js.length} chars of JS`,
+      ]);
+      setConclusion(res.message || "Page redesign applied.");
+      return true;
+    } catch (e) {
+      setTechnicalLog((prev) => [...prev, `[redesign] ERROR: ${String(e)}`]);
+      setRunHadError(true);
+      setConclusion(`Redesign failed: ${String(e)}`);
+      return false;
+    } finally {
+      setRunning(false);
+    }
+  }, []);
+
   const beginRunFromGoal = useCallback(async (raw: string) => {
     const g = raw.trim();
     if (!g) return false;
+    setRedesignActive(false);
     setSteps([]);
     setTechnicalLog([]);
     setConclusion(null);
@@ -167,9 +231,20 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const submitComposer = useCallback(async () => {
     const text = composer.trim();
     if (!text || running) return;
+    if (redesignActive) {
+      const ok = await runRedesignMutation(text);
+      if (ok) setComposer("");
+      return;
+    }
     const ok = await beginRunFromGoal(text);
     if (ok) setComposer("");
-  }, [composer, running, beginRunFromGoal]);
+  }, [
+    composer,
+    running,
+    redesignActive,
+    runRedesignMutation,
+    beginRunFromGoal,
+  ]);
 
   useEffect(() => {
     if (!composerRef.current) return;
@@ -244,6 +319,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     setRunHadError(false);
     setGoal("");
     setComposer("");
+    setRedesignActive(false);
     setStepsExpanded(false);
   };
 
@@ -282,6 +358,40 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
               >
                 Stop
               </Button>
+              {redesignActive ? (
+                <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                  <Paintbrush className="size-3.5 shrink-0 opacity-70" />
+                  Redesign
+                  <button
+                    type="button"
+                    aria-label="Exit Redesign mode"
+                    disabled={running}
+                    className="ml-0.5 rounded px-1 text-muted-foreground/90 hover:bg-background/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setRedesignActive(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  type="button"
+                  className="h-7 px-2 text-[11px] gap-1"
+                  disabled={running}
+                  onClick={() => {
+                    setRedesignActive(true);
+                    requestAnimationFrame(() =>
+                      composerRef.current?.focus(),
+                    );
+                  }}
+                  title="Redesign the visible page"
+                >
+                  <Paintbrush className="size-3 shrink-0" />
+                  Redesign
+                </Button>
+              )}
             </>
           ) : (
             <>
@@ -317,6 +427,40 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   onClick={() => clearRun()}
                 >
                   New task
+                </Button>
+              )}
+              {redesignActive ? (
+                <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                  <Paintbrush className="size-3.5 shrink-0 opacity-70" />
+                  Redesign
+                  <button
+                    type="button"
+                    aria-label="Exit Redesign mode"
+                    disabled={running}
+                    className="ml-0.5 rounded px-1 text-muted-foreground/90 hover:bg-background/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setRedesignActive(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  type="button"
+                  className="h-7 px-2 text-[11px] gap-1"
+                  disabled={running}
+                  onClick={() => {
+                    setRedesignActive(true);
+                    requestAnimationFrame(() =>
+                      composerRef.current?.focus(),
+                    );
+                  }}
+                  title="Redesign the visible page"
+                >
+                  <Paintbrush className="size-3 shrink-0" />
+                  Redesign
                 </Button>
               )}
             </>
@@ -544,7 +688,11 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                       if (!running && composer.trim()) void submitComposer();
                     }
                   }}
-                  placeholder="Ask the agent a favour..."
+                  placeholder={
+                    redesignActive
+                      ? "Describe how to change this page…"
+                      : "Ask the agent a favour..."
+                  }
                   disabled={running}
                   className="w-full resize-none outline-none bg-transparent text-foreground placeholder:text-muted-foreground min-h-[24px] max-h-[200px] disabled:opacity-55"
                   rows={1}

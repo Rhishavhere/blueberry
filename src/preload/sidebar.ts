@@ -53,6 +53,15 @@ type HomeAgentRunPayload = {
   messageId: string;
 };
 
+type MutateRunResult =
+  | {
+      ok: true;
+      message: string;
+      js: string;
+      executionResult: unknown;
+    }
+  | { ok: false; error: string };
+
 // Sidebar specific APIs
 const sidebarAPI = {
   // Chat functionality
@@ -97,6 +106,9 @@ const sidebarAPI = {
     electronAPI.ipcRenderer.invoke("agent-start", { goal, maxSteps }),
 
   agentStop: () => electronAPI.ipcRenderer.invoke("agent-stop"),
+
+  mutateRun: (instruction: string): Promise<MutateRunResult> =>
+    electronAPI.ipcRenderer.invoke("mutate-run", instruction),
 
   openAgentReportTab: (
     reportId: string,
