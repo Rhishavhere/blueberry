@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, RefreshCw, Loader2, PanelLeftClose, PanelLeft, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RefreshCw, Loader2, PanelLeftClose, PanelLeft, Plus, Minimize2 } from 'lucide-react'
 import { useBrowser } from '../contexts/BrowserContext'
 import { ToolBarButton } from '../components/ToolBarButton'
 import { Favicon } from '../components/Favicon'
@@ -225,7 +225,20 @@ export const AddressBar: React.FC = () => {
 
             {/* Actions Menu */}
             <div className="flex items-center gap-1 app-region-no-drag">
-                
+                <ToolBarButton
+                    className="w-auto px-2.5 bg-gray-400/20"
+                    children={
+                        <div className='flex items-center gap-1.5'>
+                            {/* <Minimize2 className='w-4 h-4'/> */}
+                            <span className="text-sm font-medium">Go Mini</span>
+                        </div>
+                    }
+                    onClick={() => {
+                        if (window.topBarAPI) {
+                            window.topBarAPI.enterMiniMode()
+                        }
+                    }}
+                />
                 <DarkModeToggle />
                 <ToolBarButton
                     Icon={isSidebarOpen ? PanelLeftClose : PanelLeft}

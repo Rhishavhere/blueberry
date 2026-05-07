@@ -1,17 +1,20 @@
 import { app, BrowserWindow } from "electron";
 import { electronApp } from "@electron-toolkit/utils";
 import { Window } from "./Window";
+import { MiniWindow } from "./MiniWindow";
 import { AppMenu } from "./Menu";
 import { EventManager } from "./EventManager";
 
 let mainWindow: Window | null = null;
+let miniWindow: MiniWindow | null = null;
 let eventManager: EventManager | null = null;
 let menu: AppMenu | null = null;
 
 const createWindow = (): Window => {
   const window = new Window();
+  miniWindow = new MiniWindow();
   menu = new AppMenu(window);
-  eventManager = new EventManager(window);
+  eventManager = new EventManager(window, miniWindow);
   return window;
 };
 

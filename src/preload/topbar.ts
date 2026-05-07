@@ -31,6 +31,10 @@ const topBarAPI = {
   // Sidebar
   toggleSidebar: () =>
     electronAPI.ipcRenderer.invoke("toggle-sidebar"),
+
+  // Mini Mode
+  enterMiniMode: () =>
+    electronAPI.ipcRenderer.invoke("enter-mini-mode"),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -28,6 +28,9 @@ interface TopBarAPI {
 
   // Sidebar
   toggleSidebar: () => Promise<void>;
+
+  // Mini Mode
+  enterMiniMode: () => Promise<boolean>;
 }
 
 declare global {

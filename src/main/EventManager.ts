@@ -1,6 +1,7 @@
-import { dialog, ipcMain, shell, WebContents } from "electron";
+import { app, dialog, ipcMain, shell, WebContents } from "electron";
 import { writeFile } from "fs/promises";
 import type { Window } from "./Window";
+import type { MiniWindow } from "./MiniWindow";
 import { isHomePageUrl } from "./homePage";
 import { getReportViewerPageUrl, isReportPageUrl } from "./reportPage";
 import { loadAgentReport } from "./agent/agentReportStorage";
@@ -9,10 +10,12 @@ import { AgentRunner } from "./AgentRunner";
 
 export class EventManager {
   private mainWindow: Window;
+  private miniWindow: MiniWindow;
   private agentRunner = new AgentRunner();
 
-  constructor(mainWindow: Window) {
+  constructor(mainWindow: Window, miniWindow: MiniWindow) {
     this.mainWindow = mainWindow;
+    this.miniWindow = miniWindow;
     this.setupEventHandlers();
   }
 
@@ -31,6 +34,9 @@ export class EventManager {
 
     // Debug events
     this.handleDebugEvents();
+
+    // Mini mode events
+    this.handleMiniModeEvents();
   }
 
   private handleTabEvents(): void {
@@ -409,6 +415,49 @@ export class EventManager {
   private handleDebugEvents(): void {
     // Ping test
     ipcMain.on("ping", () => console.log("pong"));
+  }
+
+  private handleMiniModeEvents(): void {
+    ipcMain.handle("enter-mini-mode", () => {
+      this.mainWindow.hide();
+      this.miniWindow.show();
+      return true;
+    });
+
+    ipcMain.handle("exit-mini-mode", async () => {
+      // Grab URL before hiding, because hide() destroys the tab
+      const url = this.miniWindow.currentUrl;
+
+      this.miniWindow.hide();
+      this.mainWindow.show();
+      
+      // Transfer URL if we have one
+      if (url) {
+        let tab = this.mainWindow.activeTab;
+        if (!tab) {
+          tab = this.mainWindow.createTab(url);
+          this.mainWindow.switchActiveTab(tab.id);
+        } else {
+          await tab.loadURL(url);
+        }
+      }
+      return true;
+    });
+
+    ipcMain.handle("mini-search", async (_, url: string) => {
+      await this.miniWindow.expandAndSearch(url);
+      return true;
+    });
+
+    ipcMain.handle("mini-collapse", () => {
+      this.miniWindow.collapse();
+      return true;
+    });
+
+    ipcMain.handle("quit-app", () => {
+      app.quit();
+      return true;
+    });
   }
 
   private broadcastDarkMode(sender: WebContents, isDarkMode: boolean): void {
