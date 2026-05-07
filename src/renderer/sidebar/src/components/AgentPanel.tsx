@@ -13,7 +13,7 @@ import {
   FileText,
   ListOrdered,
   Loader2,
-  Paintbrush,
+  PaintbrushVertical,
   XCircle,
 } from "lucide-react";
 import { Button } from "@common/components/Button";
@@ -360,7 +360,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
               </Button>
               {redesignActive ? (
                 <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
-                  <Paintbrush className="size-3.5 shrink-0 opacity-70" />
+                  <PaintbrushVertical className="size-3.5 shrink-0 opacity-70" />
                   Redesign
                   <button
                     type="button"
@@ -370,7 +370,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setRedesignActive(false)}
                   >
-                    ×
+                    x
                   </button>
                 </div>
               ) : (
@@ -388,7 +388,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   }}
                   title="Redesign the visible page"
                 >
-                  <Paintbrush className="size-3 shrink-0" />
+                  <PaintbrushVertical className="size-3 shrink-0" />
                   Redesign
                 </Button>
               )}
@@ -431,7 +431,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
               )}
               {redesignActive ? (
                 <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
-                  <Paintbrush className="size-3.5 shrink-0 opacity-70" />
+                  <PaintbrushVertical className="size-3.5 shrink-0 opacity-70" />
                   Redesign
                   <button
                     type="button"
@@ -441,7 +441,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setRedesignActive(false)}
                   >
-                    ×
+                    x
                   </button>
                 </div>
               ) : (
@@ -459,7 +459,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   }}
                   title="Redesign the visible page"
                 >
-                  <Paintbrush className="size-3 shrink-0" />
+                  <PaintbrushVertical className="size-3 shrink-0" />
                   Redesign
                 </Button>
               )}
@@ -690,7 +690,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   }}
                   placeholder={
                     redesignActive
-                      ? "Describe how to change this page…"
+                      ? "Describe your page redesign…"
                       : "Ask the agent a favour..."
                   }
                   disabled={running}
