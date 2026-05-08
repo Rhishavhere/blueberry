@@ -45,7 +45,8 @@ The JSON must use exactly one of these shapes:
 Do NOT use {"action":"see"} — screenshots are included every turn automatically from now on.
 
 For research / analysis / reports: use read_page when you need exact text in context; use save_report on tabs to hand off content to the reporting agent (not on every read — only pages that matter for the write-up). Never try to paste a full report in JSON.
-If the user asked for a analysis/report/summary, make sure you use save_report. This is non negotiable.
+Whenever asked for a analysis/report/summary/plan, YOU MUST USE save_report. This is non negotiable.
+Always use {"action":"save_report"} after you executed {"action":"read_page"}
 
 "read_page" gives you complete HTML.innerText, which is why you dont need to go through a page scrolling to read its text.
 

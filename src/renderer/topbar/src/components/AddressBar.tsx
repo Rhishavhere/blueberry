@@ -87,12 +87,30 @@ export const AddressBar: React.FC = () => {
         }
     }
 
+    const isReportUrl = (rawUrl: string): boolean => {
+        try {
+            if (rawUrl.startsWith('file:')) {
+                return /report[\/\\]index\.html/i.test(rawUrl)
+            }
+            const u = new URL(rawUrl)
+            const p = u.pathname.replace(/\/+$/, '') || '/'
+            if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+                return p === '/report'
+            }
+            return false
+        } catch {
+            return false
+        }
+    }
+
     const isHomeTab = !!activeTab?.url && isHomeTabUrl(activeTab.url)
+    const isReport = !!activeTab?.url && isReportUrl(activeTab.url)
 
     // Extract domain and title for display
     const getDomain = () => {
         if (!activeTab?.url) return ''
         if (isHomeTab) return 'Home'
+        if (isReport) return 'Report'
         try {
             const urlObj = new URL(activeTab.url)
             return urlObj.hostname.replace('www.', '')
@@ -114,6 +132,7 @@ export const AddressBar: React.FC = () => {
     const getFavicon = () => {
         if (!activeTab?.url) return null
         if (isHomeTab) return '/icon.png'
+        if (isReport) return '/icon.png'
         try {
             const domain = new URL(activeTab.url).hostname
             return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`

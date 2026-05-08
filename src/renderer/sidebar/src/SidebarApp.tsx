@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ChatProvider } from './contexts/ChatContext'
+import { ChatProvider, useChat } from './contexts/ChatContext'
 import { Chat } from './components/Chat'
 import { AgentPanel } from './components/AgentPanel'
 import { useDarkMode } from '@common/hooks/useDarkMode'
@@ -9,8 +9,11 @@ type SidebarRail = 'chat' | 'agent'
 
 const SidebarContent: React.FC = () => {
     const { isDarkMode } = useDarkMode()
+    const { messages } = useChat()
     const [rail, setRail] = useState<SidebarRail>('chat')
     const [agentRunRequest, setAgentRunRequest] = useState<{ id: string; goal: string } | null>(null)
+
+    const isCleanSlate = messages.length === 0
 
     // Apply dark mode class to the document
     useEffect(() => {
@@ -39,7 +42,7 @@ const SidebarContent: React.FC = () => {
 
     return (
         <div className="h-screen flex flex-col bg-background border-l border-border relative">
-            {rail === 'chat' && (
+            {rail === 'chat' && isCleanSlate && (
                 <div
                     className="absolute inset-0 pointer-events-none opacity-25 bg-bottom bg-no-repeat bg-[length:auto_50%] sm:bg-contain"
                     style={{ backgroundImage: "url('/look.png')" }}

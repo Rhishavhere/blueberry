@@ -29,7 +29,7 @@ function slugify(text: string): string {
 
 function estimateReadTime(markdown: string): number {
   const words = markdown.trim().split(/\s+/).length;
-  return Math.max(1, Math.round(words / 300));
+  return Math.max(1, Math.round(words / 200));
 }
 
 function extractToc(markdown: string): TocEntry[] {

@@ -265,6 +265,11 @@ export class AgentRunner {
               }
             }
           } catch (e) {
+            if (signal.aborted) {
+              emit({ type: "conclusion", text: "Stopped." });
+              emit({ type: "finished", reason: "stopped" });
+              return;
+            }
             emit({
               type: "conclusion",
               text: `Couldn't capture the active tab: ${String(e)}. Check that a tab is visible and try again.`,
@@ -362,6 +367,11 @@ export class AgentRunner {
           });
           action = await parseOrRepairAgentStep(text, model, signal, emit);
         } catch (e) {
+          if (signal.aborted) {
+            emit({ type: "conclusion", text: "Stopped." });
+            emit({ type: "finished", reason: "stopped" });
+            return;
+          }
           emit({
             type: "conclusion",
             text: "The planner hit an error while talking to the AI. Check your API key and model name in .env, then retry.",
@@ -470,6 +480,11 @@ export class AgentRunner {
             lastReadCapture = null;
           }
         } catch (execErr) {
+          if (signal.aborted) {
+            emit({ type: "conclusion", text: "Stopped." });
+            emit({ type: "finished", reason: "stopped" });
+            return;
+          }
           emit({
             type: "conclusion",
             text: `Something went wrong while executing that action: ${String(execErr)}`,

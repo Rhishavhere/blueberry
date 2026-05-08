@@ -615,7 +615,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   ) : (
                     <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   )}
-                  <div className="min-w-0 flex items-center gap-2">
+                  <div className="min-w-0 flex justify-between items-center w-full">
                     <p className="font-semibold text-sm text-foreground">
                       {runHadError
                         ? "Couldnt finish cleanly"
@@ -632,10 +632,10 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                         type="button"
                         title="Save as Routine"
                         onClick={() => { setRoutineName(""); setShowSaveRoutine(true); }}
-                        className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
+                        className="ml-1 inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
                       >
                         <Bookmark className="size-3" />
-                        Save Routine
+                        Save
                       </button>
                     )}
                   </div>

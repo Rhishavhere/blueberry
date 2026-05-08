@@ -167,7 +167,7 @@ export const MiniApp: React.FC = () => {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={isAgentMode ? "Research a topic..." : "Search"}
+          placeholder={isAgentMode ? "Ask agent" : "Search"}
           className="flex-1 bg-transparent border-none outline-none text-md font-medium text-gray-600 dark:text-gray-100 placeholder:text-gray-400 app-region-no-drag"
           autoComplete="off"
           spellCheck={false}
