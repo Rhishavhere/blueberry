@@ -494,7 +494,10 @@ export class EventManager {
     ipcMain.handle("enter-mini-mode", () => {
       this.mainWindow.hide();
       this.miniWindow.show();
-      this.proactiveAgent.start(this.miniWindow.view.webContents);
+      this.proactiveAgent.start(this.miniWindow.view.webContents, (text, images) => {
+        this.miniWindow.expandLow();
+        this.miniWindow.view.webContents.send("proactive-suggestion", { text, images });
+      });
       return true;
     });
 

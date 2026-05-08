@@ -243,7 +243,7 @@ export const MiniApp: React.FC = () => {
       </form>
 
       {/* Embedded Webview Result (Normal Search) */}
-      {isExpanded && !isAgentMode && (
+      {isExpanded && !isAgentMode && searchUrl && (
         <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10 bg-white">
           <webview 
             ref={webviewRef}
@@ -305,7 +305,7 @@ export const MiniApp: React.FC = () => {
 
       {/* Proactive Result View */}
       {isExpanded && proactiveResult && (
-        <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10 bg-white relative p-4">
+        <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-white relative p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkle className="w-5 h-5 text-purple-500" />

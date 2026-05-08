@@ -8,11 +8,13 @@ export class ProactiveAgent {
   private sender: WebContents | null = null;
   private isRunning: boolean = false;
   private isProcessing: boolean = false;
+  private onSuggestion: ((text: string, images: string[]) => void) | null = null;
 
-  public start(sender: WebContents) {
+  public start(sender: WebContents, onSuggestion?: (text: string, images: string[]) => void) {
     if (this.isRunning) return;
     this.isRunning = true;
     this.sender = sender;
+    if (onSuggestion) this.onSuggestion = onSuggestion;
     this.screenshots = [];
     this.runLoop();
   }
@@ -49,18 +51,22 @@ export class ProactiveAgent {
       count++;
 
       if (count >= 3) {
-        console.log("[ProactiveAgent] 60 seconds passed, sending 3 screenshots to Gemini...");
+        console.log("[ProactiveAgent] Got all 3 ss, sending 3 screenshots to Anthropic...");
         this.isProcessing = true;
-        const helpText = await this.callGemini(this.screenshots);
+        const helpText = await this.getProactiveSuggestion(this.screenshots);
         
         if (helpText && helpText.trim() && this.sender) {
-          console.log("[ProactiveAgent] Gemini suggestion:", helpText);
-          this.sender.send("proactive-suggestion", { 
-            text: helpText, 
-            images: [...this.screenshots] // send a copy
-          });
+          console.log("[ProactiveAgent] Suggestion:", helpText);
+          if (this.onSuggestion) {
+            this.onSuggestion(helpText, [...this.screenshots]);
+          } else {
+            this.sender.send("proactive-suggestion", { 
+              text: helpText, 
+              images: [...this.screenshots] 
+            });
+          }
         } else {
-          console.log("[ProactiveAgent] Gemini did not return a suggestion or returned empty.");
+          console.log("[ProactiveAgent] No suggestion returned or returned empty.");
           this.isProcessing = false; // Reset if no suggestion
         }
         
@@ -68,7 +74,7 @@ export class ProactiveAgent {
         this.screenshots = [];
         count = 0;
       }
-    }, 20000);
+    }, 3000);
   }
 
   private async captureScreen(): Promise<string | null> {
@@ -87,41 +93,36 @@ export class ProactiveAgent {
     return null;
   }
 
-  private async callGemini(images: string[]): Promise<string | null> {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY; // Fallback or assume GEMINI_API_KEY
+  private async getProactiveSuggestion(images: string[]): Promise<string | null> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.error("[ProactiveAgent] GEMINI_API_KEY is not set.");
+      console.error("[ProactiveAgent] ANTHROPIC_API_KEY is not set.");
       return null;
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    
-    const parts = [
-      { text: "Analyze these 3 sequential screenshots taken 20 seconds apart. Suggest a short help message (1-2 sentences) if you see the user working on something specific. Format: 'I see you are [action]. Do you want me to help ?'. If they are not doing anything specific or you can't tell, return empty." }
-    ];
-
-    for (const img of images) {
-      const base64Data = img.split(",")[1];
-      parts.push({
-        inlineData: {
-          mimeType: "image/png",
-          data: base64Data
-        }
-      } as any);
-    }
-
+    const modelId = process.env.AGENT_MODEL || "claude-3-5-haiku-20241022";
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts }] })
+      const { text } = await generateText({
+        model: anthropic(modelId),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: "Analyze these 3 sequential screenshots taken 20 seconds apart. Suggest a short help message (1-2 sentences) if you see the user working on something specific. Format: 'I see you are [action]. Do you want me to help ?'. Do not explain why you are suggesting or talk about screenshots in the response." 
+              },
+              ...images.map(img => ({ 
+                type: "image" as const, 
+                image: img 
+              }))
+            ]
+          }
+        ]
       });
-      
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      return text || null;
+      return text;
     } catch (e) {
-      console.error("[ProactiveAgent] Gemini API error:", e);
+      console.error("[ProactiveAgent] Anthropic API error (in getProactiveSuggestion):", e);
       return null;
     }
   }
@@ -134,16 +135,17 @@ export class ProactiveAgent {
     }
 
     this.isProcessing = true;
+    const modelId = process.env.AGENT_MODEL || "claude-3-5-haiku-20241022";
     try {
       const { text } = await generateText({
-        model: anthropic("claude-3-5-sonnet-20241022"),
+        model: anthropic(modelId),
         messages: [
           {
             role: "user",
             content: [
               { 
                 type: "text", 
-                text: `You previously suggested: "${suggestionText}". The user clicked "Sure". Based on these 3 sequential screenshots, provide the help you can offer. Be highly relevant to what they are doing. You cannot perform action on their behalf , the only help you can provide is by generating text output (info, analysis, tables, code, etc). ` 
+                text: `You previously suggested: "${suggestionText}". The user clicked "Sure". Based on these 3 sequential screenshots, provide the help you can offer. Be highly relevant to what they are doing. You cannot perform action on their behalf , the only help you can provide is by generating text output (info, analysis, tables, code, etc). You dont get any more chances to talk with the user. so its your best bet with what you can help. provide directly. ` 
               },
               ...images.map(img => ({ 
                 type: "image" as const, 
