@@ -497,7 +497,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                 className={cn(
                   "inline-flex items-center gap-2 rounded-lg px-3 py-1 text-[11px] font-medium",
                   status === "completed" &&
-                    "bg-emerald-50/95 text-emerald-950 dark:bg-emerald-950/35 dark:border-emerald-900 dark:text-emerald-50",
+                    "bg-emerald-50/45 text-emerald-900 dark:bg-emerald-950/35 dark:border-emerald-900 dark:text-emerald-50",
                   status === "error" &&
                     "bg-red-50/95 text-red-950 dark:bg-red-950/35 dark:border-red-900 dark:text-red-50",
                   status === "idle" && "bg-muted/60 text-muted-foreground",
@@ -507,7 +507,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   <span
                     className={cn(
                       "flex size-1.5 rounded-full",
-                      status === "error" ? "bg-red-500" : "bg-emerald-500",
+                      status === "error" ? "bg-red-500" : "bg-emerald-600",
                     )}
                   />
                 )}
@@ -610,13 +610,13 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
             </section>
 
             {/* Result card */}
-            <section className="rounded-2xl shadow-md overflow-hidden">
+            <section className="rounded-xl shadow-md overflow-hidden">
               <div
                 className={cn(
                   "px-4 py-3",
                   running
                     ? "border-border/70 bg-muted/30"
-                    : "border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20",
+                    : "border-emerald-100 dark:border-emerald-900/50 bg-emerald-800/5 dark:bg-emerald-950/20",
                 )}
               >
                 <div className="flex gap-2 items-center">
@@ -625,7 +625,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   ) : running && conclusion === null ? (
                     <Loader2 className="size-5 animate-spin text-violet-600 mt-0.5 shrink-0" />
                   ) : (
-                    <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="size-5 text-emerald-800 dark:text-emerald-400 mt-0.5 shrink-0" />
                   )}
                   <div className="min-w-0 flex justify-between items-center w-full">
                     <p className="font-semibold text-sm text-foreground">
@@ -644,7 +644,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                         type="button"
                         title="Save as Routine"
                         onClick={() => { setRoutineName(""); setShowSaveRoutine(true); }}
-                        className="ml-1 inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
+                        className="ml-1 inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-medium bg-white text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
                       >
                         <Bookmark className="size-3" />
                         Save
