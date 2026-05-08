@@ -128,6 +128,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   /** Monotonically increasing run counter. Events from a previous run are ignored. */
   const runIdRef = useRef(0);
+  /** Tracks the last external run request ID that we already handled, to prevent HMR re-triggers. */
+  const lastHandledExternalId = useRef<string | null>(null);
 
   const status: RunStatus = useMemo(() => {
     if (running) return "running";
@@ -332,9 +334,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
   useEffect(() => {
     const onEvent = (e: AgentEventPayload): void => {
-      // Capture the current run ID at the time this event fires
-      const currentId = runIdRef.current;
       const ts = new Date().toISOString().slice(11, 19);
+      // ALL events are gated by the active run ID so stopped runs cannot update state
+      const currentId = runIdRef.current;
       if (e.type === "log") {
         setTechnicalLog((prev) => [...prev, `[${ts}] ${e.message}`]);
       } else if (e.type === "step") {
@@ -342,29 +344,33 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         const label = humanizeStep(e.action);
         setSteps((prev) => [...prev, { step: e.step, label, raw }]);
       } else if (e.type === "conclusion") {
-        setConclusion(e.text.trim());
+        if (currentId === runIdRef.current) setConclusion(e.text.trim());
       } else if (e.type === "report_generating") {
-        setReportGenerating(true);
-        setReportError(null);
+        if (currentId === runIdRef.current) {
+          setReportGenerating(true);
+          setReportError(null);
+        }
       } else if (e.type === "report_error") {
-        setReportGenerating(false);
-        setReportError(e.message);
+        if (currentId === runIdRef.current) {
+          setReportGenerating(false);
+          setReportError(e.message);
+        }
       } else if (e.type === "report") {
-        setReportGenerating(false);
-        setReportError(null);
-        setReportLinks((prev) => {
-          if (prev.some((r) => r.id === e.id)) return prev;
-          return [...prev, { id: e.id, title: e.title, url: e.url }];
-        });
+        if (currentId === runIdRef.current) {
+          setReportGenerating(false);
+          setReportError(null);
+          setReportLinks((prev) => {
+            if (prev.some((r) => r.id === e.id)) return prev;
+            return [...prev, { id: e.id, title: e.title, url: e.url }];
+          });
+        }
       } else if (e.type === "error") {
-        // Only update running state if this event belongs to the active run
         if (currentId === runIdRef.current) {
           setTechnicalLog((prev) => [...prev, `[${ts}] ERROR: ${e.message}`]);
           setRunning(false);
           setRunHadError(true);
         }
       } else if (e.type === "finished") {
-        // Only mark done if this event belongs to the active run
         if (currentId === runIdRef.current) {
           setTechnicalLog((prev) => [...prev, `[${ts}] stopped (${e.reason})`]);
           setRunning(false);
@@ -374,6 +380,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
     window.sidebarAPI.onAgentEvent(onEvent);
     return () => {
+      // On unmount (including HMR), also stop any running agent on the main process
+      // so it doesn't keep emitting into the remounted component
+      void window.sidebarAPI.agentStop();
       window.sidebarAPI.removeAgentEventListener();
     };
   }, []);
@@ -384,6 +393,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
   useEffect(() => {
     if (!externalRunRequest) return;
+    // Prevent HMR re-mounts from re-firing the same external request
+    if (lastHandledExternalId.current === externalRunRequest.id) return;
+    lastHandledExternalId.current = externalRunRequest.id;
     void beginRunFromGoal(externalRunRequest.goal);
   }, [externalRunRequest?.id, beginRunFromGoal]);
 

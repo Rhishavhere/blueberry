@@ -9,7 +9,7 @@ export type ReportSegmentInput = {
   body: string;
 };
 
-const MAX_BODY_PER_SEGMENT = 40_000;
+const MAX_BODY_PER_SEGMENT = 80_000;
 
 const REPORT_SYSTEM = `You are a dedicated research-report writer. You receive the user's original task and raw page text excerpts a browser agent saved. Your job is ONE polished Markdown document for a beautiful on-screen reader (headings, lists, tables, clear hierarchy).
 
@@ -88,7 +88,7 @@ export async function generateResearchReportMarkdown(args: {
   }
   const trace =
     args.historyLines.length > 0
-      ? args.historyLines.slice(-40).join("\n")
+      ? args.historyLines.join("\n")
       : "(no action trace)";
 
   const segmentBlocks = args.segments

@@ -40,7 +40,7 @@ async function writeUserConclusion(args: {
   }
   const trace =
     historyLines.length > 0
-      ? historyLines.slice(-25).join("\n")
+      ? historyLines.join("\n")
       : "(no recorded actions)";
   try {
     const { text } = await generateText({
@@ -289,7 +289,7 @@ export class AgentRunner {
 
         const recent =
           historyLines.length > 0
-            ? `Recent actions:\n${historyLines.slice(-8).join("\n")}`
+            ? `Full action history:\n${historyLines.join("\n")}`
             : "";
 
         const snapshotSection =
