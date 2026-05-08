@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Bot, Bookmark, Plus, PanelRight, Search, Trash2, X } from "lucide-react";
+import { Bot, Bookmark, Plus, PanelRight, Search, Trash2, X, BookOpen, ExternalLink } from "lucide-react";
 import { cn } from "@common/lib/utils";
 import { useDarkMode } from "@common/hooks/useDarkMode";
 
 type QueryMode = "search" | "agent";
-type HomeTab = "home" | "routines";
+type HomeTab = "home" | "routines" | "articles";
 
 interface Routine {
   id: string;
@@ -78,6 +78,10 @@ export const HomeApp: React.FC = () => {
   const [createQuery, setCreateQuery] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Articles state
+  const [reports, setReports] = useState<Array<{ id: string; title: string; createdAt: string }>>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
   const loadRoutines = async () => {
     if (!window.routinesAPI) return;
     setRoutinesLoading(true);
@@ -91,7 +95,19 @@ export const HomeApp: React.FC = () => {
 
   useEffect(() => {
     void loadRoutines();
+    void loadReports();
   }, []);
+
+  const loadReports = async () => {
+    if (!window.homeAPI) return;
+    setReportsLoading(true);
+    try {
+      const r = await window.homeAPI.listReports();
+      setReports(r);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
 
   const handleDeleteRoutine = async (id: string) => {
     await window.routinesAPI.delete(id);
@@ -155,6 +171,12 @@ export const HomeApp: React.FC = () => {
           onClick={() => { setHomeTab("routines"); void loadRoutines(); }}
           icon={<Bookmark className="size-3.5" />}
           label="Routines"
+        />
+        <TabPill
+          active={homeTab === "articles"}
+          onClick={() => { setHomeTab("articles"); void loadReports(); }}
+          icon={<BookOpen className="size-3.5" />}
+          label="Articles"
         />
       </div>
 
@@ -358,6 +380,46 @@ export const HomeApp: React.FC = () => {
                     >
                       <Trash2 className="size-3.5" />
                     </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </main>
+      )}
+
+      {/* Articles Tab */}
+      {homeTab === "articles" && (
+        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full">
+          <div className="flex items-center gap-3 mb-6">
+            <BookOpen className="size-5 text-primary" />
+            <h1 className="text-xl font-semibold tracking-tight">Saved Reports</h1>
+            <span className="text-xs text-muted-foreground">{reports.length} report{reports.length !== 1 ? "s" : ""}</span>
+          </div>
+
+          {reportsLoading ? (
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          ) : reports.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-20">
+              <BookOpen className="size-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground max-w-xs">
+                No reports saved yet. Ask the agent to research something and save a report.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {reports.map((r) => (
+                <li
+                  key={r.id}
+                  onClick={() => void window.homeAPI.openReport(r.id)}
+                  className="group flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <h3 className="font-semibold text-sm text-foreground leading-snug line-clamp-2">{r.title}</h3>
+                    <ExternalLink className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
+                    <span>{new Date(r.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
                   </div>
                 </li>
               ))}

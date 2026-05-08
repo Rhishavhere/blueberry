@@ -270,8 +270,8 @@ export const ReportApp: React.FC = () => {
 
   const onDownload = useCallback(async () => {
     if (!id) return;
-    const r = await window.reportAPI.saveReportAs(id);
-    if (!r.ok && r.error !== "cancelled") console.error("Save failed", r.error);
+    const r = await (window as any).reportAPI.saveReportPdf(id);
+    if (!r.ok && r.error !== "cancelled") console.error("Save PDF failed", r.error);
   }, [id]);
 
   // ── Error / loading states ──
@@ -327,7 +327,7 @@ export const ReportApp: React.FC = () => {
         body { background: var(--bg); margin: 0; }
 
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--ink-muted); }
@@ -347,13 +347,28 @@ export const ReportApp: React.FC = () => {
         /* Heading reveal animation */
         .report-h2 { opacity: 0; transform: translateX(-8px); animation: slideIn 0.4s ease forwards; }
         @keyframes slideIn { to { opacity: 1; transform: none; } }
+
+        /* Print styles for PDF generation */
+        @media print {
+          .print-hide { display: none !important; }
+          .report-body {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            background: transparent !important;
+          }
+          .mt-36 { margin-top: 0 !important; }
+          body, .min-h-screen { background: white !important; }
+        }
       `}</style>
 
       <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--ink)" }}>
 
         {/* ── Header ── */}
         <header
-          className="fixed top-0 inset-x-0 z-30 transition-all duration-300"
+          className="print-hide fixed top-0 inset-x-0 z-30 transition-all duration-300"
           style={{
             background: scrolled ? "rgba(255,255,255,0.94)" : "rgba(255,255,255,0.94)",
             backdropFilter: scrolled ? "blur(12px)" : "none",
@@ -435,7 +450,7 @@ export const ReportApp: React.FC = () => {
           <div className="flex gap-12 xl:gap-16">
 
             {/* Sidebar TOC */}
-            <aside className="hidden lg:block w-56 xl:w-64 shrink-0">
+            <aside className="print-hide hidden lg:block w-56 xl:w-64 shrink-0">
               <TableOfContents entries={toc} activeId={activeId} />
             </aside>
 
@@ -475,7 +490,7 @@ export const ReportApp: React.FC = () => {
           <button
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-8 right-6 z-30 size-10 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+            className="print-hide fixed bottom-8 right-6 z-30 size-10 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
             style={{
               background: "var(--ink)",
               color: "#fff",

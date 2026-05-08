@@ -7,6 +7,8 @@ interface HomeAPI {
     messageId: string;
   }) => Promise<boolean>;
   toggleSidebar: () => Promise<boolean>;
+  listReports: () => Promise<Array<{ id: string; title: string; createdAt: string }>>;
+  openReport: (id: string) => Promise<{ ok: boolean; tabId?: string; url?: string; title?: string; error?: string }>;
 }
 
 interface Routine {

@@ -64,3 +64,34 @@ export async function loadAgentReport(
     return null;
   }
 }
+
+export async function listAgentReports(): Promise<Omit<SavedAgentReport, "markdown">[]> {
+  const fs = await import("fs/promises");
+  try {
+    await fs.mkdir(reportsDir(), { recursive: true });
+    const files = await fs.readdir(reportsDir());
+    const reports: Omit<SavedAgentReport, "markdown">[] = [];
+    
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const raw = await fs.readFile(join(reportsDir(), file), "utf-8");
+        const data = JSON.parse(raw) as SavedAgentReport;
+        if (data && data.id && data.title) {
+          reports.push({
+            id: data.id,
+            title: data.title,
+            createdAt: data.createdAt || "",
+          });
+        }
+      } catch {
+        // ignore bad files
+      }
+    }
+    
+    // Sort by newest first
+    return reports.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch {
+    return [];
+  }
+}

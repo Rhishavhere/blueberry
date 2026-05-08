@@ -44,6 +44,10 @@ const homeAPI = {
     ) as Promise<boolean>;
   },
   toggleSidebar: () => ipcRenderer.invoke("toggle-sidebar"),
+  listReports: () => ipcRenderer.invoke("agent-report-list") as Promise<
+    Array<{ id: string; title: string; createdAt: string }>
+  >,
+  openReport: (id: string) => ipcRenderer.invoke("agent-open-report-tab", id),
 };
 
 const reportAPI = {
@@ -58,6 +62,11 @@ const reportAPI = {
   },
   saveReportAs: (id: string) =>
     ipcRenderer.invoke("agent-report-save-as", id) as Promise<
+      | { ok: true; path: string }
+      | { ok: false; error: string }
+    >,
+  saveReportPdf: (id: string) =>
+    ipcRenderer.invoke("agent-report-save-pdf", id) as Promise<
       | { ok: true; path: string }
       | { ok: false; error: string }
     >,

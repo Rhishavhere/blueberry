@@ -4,7 +4,7 @@ import type { Window } from "./Window";
 import type { MiniWindow } from "./MiniWindow";
 import { isHomePageUrl } from "./homePage";
 import { getReportViewerPageUrl, isReportPageUrl } from "./reportPage";
-import { loadAgentReport } from "./agent/agentReportStorage";
+import { loadAgentReport, listAgentReports } from "./agent/agentReportStorage";
 import { runPageMutation } from "./agent/mutateRunner";
 import { AgentRunner } from "./AgentRunner";
 import { HeadlessAgent } from "./agent/headlessAgent";
@@ -317,6 +317,10 @@ export class EventManager {
       return loadAgentReport(String(id ?? "").trim());
     });
 
+    ipcMain.handle("agent-report-list", async () => {
+      return listAgentReports();
+    });
+
     ipcMain.handle("mini-agent-report-get", async (_, id: string) => {
       return loadAgentReport(String(id ?? "").trim());
     });
@@ -363,6 +367,39 @@ export class EventManager {
       }
       await writeFile(result.filePath, data.markdown, "utf-8");
       return { ok: true as const, path: result.filePath };
+    });
+
+    ipcMain.handle("agent-report-save-pdf", async (event, id: string) => {
+      if (!isReportPageUrl(event.sender.getURL())) {
+        return { ok: false as const, error: "bad_context" };
+      }
+      const safe = String(id ?? "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(safe)) {
+        return { ok: false as const, error: "bad_id" };
+      }
+      const data = await loadAgentReport(safe);
+      if (!data) return { ok: false as const, error: "not_found" };
+      const safeName =
+        data.title
+          .replace(/[<>:"/\\|?*]/g, "_")
+          .trim()
+          .slice(0, 80) || "report";
+      const result = await dialog.showSaveDialog(this.mainWindow.window, {
+        defaultPath: `${safeName}.pdf`,
+        filters: [{ name: "PDF Document", extensions: ["pdf"] }],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false as const, error: "cancelled" };
+      }
+      try {
+        const pdfBuffer = await event.sender.printToPDF({
+          printBackground: true,
+        });
+        await writeFile(result.filePath, pdfBuffer);
+        return { ok: true as const, path: result.filePath };
+      } catch (err) {
+        return { ok: false as const, error: String(err) };
+      }
     });
 
     ipcMain.handle("mini-agent-report-save-as", async (_, id: string) => {
