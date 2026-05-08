@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ArrowUp,
+  Bookmark,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
@@ -116,8 +117,17 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const [composerFocused, setComposerFocused] = useState(false);
   /** Redesign (page mutate) — toggle in header; send uses mutate-run. */
   const [redesignActive, setRedesignActive] = useState(false);
+  // Routine save modal
+  const [showSaveRoutine, setShowSaveRoutine] = useState(false);
+  const [routineName, setRoutineName] = useState("");
+  const [routineSaving, setRoutineSaving] = useState(false);
+  // @mention dropdown
+  const [routines, setRoutines] = useState<Array<{ id: string; name: string; query: string }>>([]);
+  const [mentionDropdown, setMentionDropdown] = useState<{ visible: boolean; query: string; top: number; left: number }>({ visible: false, query: "", top: 0, left: 0 });
   const logEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  /** Monotonically increasing run counter. Events from a previous run are ignored. */
+  const runIdRef = useRef(0);
 
   const status: RunStatus = useMemo(() => {
     if (running) return "running";
@@ -189,6 +199,11 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const beginRunFromGoal = useCallback(async (raw: string) => {
     const g = raw.trim();
     if (!g) return false;
+
+    // Always stop any in-progress run first and invalidate its events
+    void window.sidebarAPI.agentStop();
+    const myRunId = ++runIdRef.current;
+
     setRedesignActive(false);
     setSteps([]);
     setTechnicalLog([]);
@@ -202,6 +217,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     setRunning(true);
     try {
       const res = await window.sidebarAPI.agentStart(g);
+      // If stop() was called while the IPC was in-flight, bail immediately
+      if (myRunId !== runIdRef.current) return false;
       if (!("ok" in res) || !res.ok) {
         const err =
           typeof res === "object" &&
@@ -219,6 +236,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         return false;
       }
     } catch (e) {
+      if (myRunId !== runIdRef.current) return false;
       setTechnicalLog((prev) => [...prev, `Failed to start: ${String(e)}`]);
       setRunHadError(true);
       setRunning(false);
@@ -228,9 +246,17 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     return true;
   }, []);
 
+  const expandMentions = useCallback((raw: string): string => {
+    return raw.replace(/@([\w]+)/g, (_, name) => {
+      const r = routines.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      return r ? `"${r.query}"` : `@${name}`;
+    });
+  }, [routines]);
+
   const submitComposer = useCallback(async () => {
-    const text = composer.trim();
-    if (!text || running) return;
+    const raw = composer.trim();
+    if (!raw || running) return;
+    const text = expandMentions(raw);
     if (redesignActive) {
       const ok = await runRedesignMutation(text);
       if (ok) setComposer("");
@@ -242,9 +268,59 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     composer,
     running,
     redesignActive,
+    expandMentions,
     runRedesignMutation,
     beginRunFromGoal,
   ]);
+
+  // Load routines on mount
+  useEffect(() => {
+    window.sidebarAPI.routinesGetAll().then(setRoutines).catch(() => {});
+  }, []);
+
+  const handleSaveRoutine = useCallback(async () => {
+    const name = routineName.trim();
+    if (!name || !goal.trim()) return;
+    setRoutineSaving(true);
+    try {
+      const res = await window.sidebarAPI.routinesSave(name, goal.trim());
+      if (res.ok) {
+        setRoutines((prev) => [...prev, res.routine]);
+        setShowSaveRoutine(false);
+        setRoutineName("");
+      }
+    } finally {
+      setRoutineSaving(false);
+    }
+  }, [routineName, goal]);
+
+  const handleComposerChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setComposer(val);
+    // Detect @mention
+    const cursor = e.target.selectionStart ?? val.length;
+    const before = val.slice(0, cursor);
+    const atMatch = before.match(/@([\w]*)$/);
+    if (atMatch) {
+      const q = atMatch[1].toLowerCase();
+      const rect = e.target.getBoundingClientRect();
+      setMentionDropdown({ visible: true, query: q, top: rect.top - 4, left: rect.left });
+    } else {
+      setMentionDropdown((d) => ({ ...d, visible: false }));
+    }
+  }, []);
+
+  const insertRoutine = useCallback((routine: { name: string; query: string }) => {
+    setComposer((prev) => {
+      const cursor = composerRef.current?.selectionStart ?? prev.length;
+      const before = prev.slice(0, cursor);
+      const after = prev.slice(cursor);
+      const replaced = before.replace(/@[\w]*$/, `@${routine.name}`);
+      return replaced + after;
+    });
+    setMentionDropdown((d) => ({ ...d, visible: false }));
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     if (!composerRef.current) return;
@@ -256,6 +332,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
   useEffect(() => {
     const onEvent = (e: AgentEventPayload): void => {
+      // Capture the current run ID at the time this event fires
+      const currentId = runIdRef.current;
       const ts = new Date().toISOString().slice(11, 19);
       if (e.type === "log") {
         setTechnicalLog((prev) => [...prev, `[${ts}] ${e.message}`]);
@@ -279,12 +357,18 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
           return [...prev, { id: e.id, title: e.title, url: e.url }];
         });
       } else if (e.type === "error") {
-        setTechnicalLog((prev) => [...prev, `[${ts}] ERROR: ${e.message}`]);
-        setRunning(false);
-        setRunHadError(true);
+        // Only update running state if this event belongs to the active run
+        if (currentId === runIdRef.current) {
+          setTechnicalLog((prev) => [...prev, `[${ts}] ERROR: ${e.message}`]);
+          setRunning(false);
+          setRunHadError(true);
+        }
       } else if (e.type === "finished") {
-        setTechnicalLog((prev) => [...prev, `[${ts}] stopped (${e.reason})`]);
-        setRunning(false);
+        // Only mark done if this event belongs to the active run
+        if (currentId === runIdRef.current) {
+          setTechnicalLog((prev) => [...prev, `[${ts}] stopped (${e.reason})`]);
+          setRunning(false);
+        }
       }
     };
 
@@ -304,6 +388,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   }, [externalRunRequest?.id, beginRunFromGoal]);
 
   const stop = (): void => {
+    // Invalidate the current run so its future events are ignored
+    runIdRef.current += 1;
     void window.sidebarAPI.agentStop();
     setRunning(false);
   };
@@ -339,7 +425,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     !running && !goal.trim() && conclusion === null && steps.length === 0;
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-gradient-to-b from-violet-50/40 dark:from-violet-950/20 via-background to-background">
+    <div className="relative flex flex-col h-full min-h-0 bg-gradient-to-b from-violet-50/40 dark:from-violet-950/20 via-background to-background">
       {/* Header */}
       <div className="shrink-0 px-4 pt-4 pb-2 flex items-start justify-between gap-2 border-b border-border/60 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
@@ -529,7 +615,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   ) : (
                     <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex items-center gap-2">
                     <p className="font-semibold text-sm text-foreground">
                       {runHadError
                         ? "Couldnt finish cleanly"
@@ -541,6 +627,17 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                               ? "All set!"
                               : "Your summary will appear here"}
                     </p>
+                    {conclusion && !running && !runHadError && (
+                      <button
+                        type="button"
+                        title="Save as Routine"
+                        onClick={() => { setRoutineName(""); setShowSaveRoutine(true); }}
+                        className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
+                      >
+                        <Bookmark className="size-3" />
+                        Save Routine
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -663,7 +760,27 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
       </div>
 
       {/* Bottom composer */}
-      <div className="shrink-0 p-4">
+      <div className="relative shrink-0 p-4">
+        {/* @mention dropdown — floats above the pill */}
+        {mentionDropdown.visible && (() => {
+          const filtered = routines.filter((r) => r.name.toLowerCase().includes(mentionDropdown.query));
+          if (!filtered.length) return null;
+          return (
+            <div className="absolute bottom-full left-4 right-4 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border bg-background shadow-xl z-50">
+              {filtered.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); insertRoutine(r); }}
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted flex flex-col gap-0.5 transition-colors"
+                >
+                  <span className="font-semibold text-foreground">@{r.name}</span>
+                  <span className="text-xs text-muted-foreground truncate">{r.query}</span>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         <div
           className={cn(
             "w-full border p-3 rounded-3xl bg-background dark:bg-secondary",
@@ -679,10 +796,15 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                 <textarea
                   ref={composerRef}
                   value={composer}
-                  onChange={(e) => setComposer(e.target.value)}
+                  onChange={handleComposerChange}
                   onFocus={() => setComposerFocused(true)}
-                  onBlur={() => setComposerFocused(false)}
+                  onBlur={() => { setComposerFocused(false); setTimeout(() => setMentionDropdown((d) => ({ ...d, visible: false })), 150); }}
                   onKeyDown={(e) => {
+                    if (mentionDropdown.visible && (e.key === "Escape")) {
+                      e.preventDefault();
+                      setMentionDropdown((d) => ({ ...d, visible: false }));
+                      return;
+                    }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       if (!running && composer.trim()) void submitComposer();
@@ -725,6 +847,33 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Save Routine Modal */}
+      {showSaveRoutine && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl">
+          <div className="bg-background border border-border rounded-2xl shadow-2xl p-6 w-[320px] flex flex-col gap-4">
+            <h3 className="font-semibold text-base">Save as Routine</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Give this task a short name. Use <code className="font-mono bg-muted px-1 rounded">@name</code> in any future task to reuse it.
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={routineName}
+              onChange={(e) => setRoutineName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveRoutine(); if (e.key === "Escape") setShowSaveRoutine(false); }}
+              placeholder="e.g. linkedin_update"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:ring-1 focus:ring-ring"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" type="button" onClick={() => setShowSaveRoutine(false)}>Cancel</Button>
+              <Button size="sm" type="button" disabled={!routineName.trim() || routineSaving} onClick={() => void handleSaveRoutine()}>
+                {routineSaving ? <Loader2 className="size-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

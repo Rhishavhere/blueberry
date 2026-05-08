@@ -68,6 +68,13 @@ type MutateRunResult =
     }
   | { ok: false; error: string };
 
+interface Routine {
+  id: string;
+  name: string;
+  query: string;
+  createdAt: string;
+}
+
 interface SidebarAPI {
   sendChatMessage: (
     request: ChatRequest | Pick<ChatRequest, "message" | "messageId">
@@ -113,6 +120,13 @@ interface SidebarAPI {
 
   onHomeAgentRun: (callback: (payload: HomeAgentRunPayload) => void) => void;
   removeHomeAgentRunListener: () => void;
+
+  routinesGetAll: () => Promise<Routine[]>;
+  routinesSave: (
+    name: string,
+    query: string,
+  ) => Promise<{ ok: true; routine: Routine } | { ok: false; error: string }>;
+  routinesDelete: (id: string) => Promise<{ ok: boolean }>;
 }
 
 declare global {

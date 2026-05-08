@@ -9,6 +9,7 @@ import { runPageMutation } from "./agent/mutateRunner";
 import { AgentRunner } from "./AgentRunner";
 import { HeadlessAgent } from "./agent/headlessAgent";
 import { Tab } from "./Tab";
+import { loadRoutines, addRoutine, deleteRoutine } from "./agent/routineStorage";
 
 export class EventManager {
   private mainWindow: Window;
@@ -40,6 +41,9 @@ export class EventManager {
 
     // Mini mode events
     this.handleMiniModeEvents();
+
+    // Routine events
+    this.handleRoutineEvents();
   }
 
   private handleTabEvents(): void {
@@ -544,6 +548,29 @@ export class EventManager {
       if (tab.webContents !== sender) {
         tab.webContents.send("dark-mode-updated", isDarkMode);
       }
+    });
+  }
+
+  private handleRoutineEvents(): void {
+    ipcMain.handle("routines-get-all", async () => {
+      return loadRoutines();
+    });
+
+    ipcMain.handle(
+      "routines-save",
+      async (_, name: string, query: string) => {
+        const trimmedName = String(name ?? "").trim();
+        const trimmedQuery = String(query ?? "").trim();
+        if (!trimmedName || !trimmedQuery)
+          return { ok: false as const, error: "empty_fields" };
+        const routine = await addRoutine(trimmedName, trimmedQuery);
+        return { ok: true as const, routine };
+      },
+    );
+
+    ipcMain.handle("routines-delete", async (_, id: string) => {
+      const ok = await deleteRoutine(String(id ?? "").trim());
+      return { ok };
     });
   }
 

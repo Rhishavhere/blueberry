@@ -67,11 +67,23 @@ const reportAPI = {
     >,
 };
 
+const routinesAPI = {
+  getAll: (): Promise<any[]> => ipcRenderer.invoke("routines-get-all"),
+  save: (
+    name: string,
+    query: string,
+  ): Promise<{ ok: true; routine: any } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("routines-save", name, query),
+  delete: (id: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("routines-delete", id),
+};
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("electron", electronAPI);
     contextBridge.exposeInMainWorld("homeAPI", homeAPI);
     contextBridge.exposeInMainWorld("reportAPI", reportAPI);
+    contextBridge.exposeInMainWorld("routinesAPI", routinesAPI);
   } catch (error) {
     console.error(error);
   }
@@ -82,4 +94,6 @@ if (process.contextIsolated) {
   window.homeAPI = homeAPI;
   // @ts-ignore (define in dts)
   window.reportAPI = reportAPI;
+  // @ts-ignore (define in dts)
+  window.routinesAPI = routinesAPI;
 }

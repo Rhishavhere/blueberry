@@ -132,6 +132,19 @@ const sidebarAPI = {
   removeHomeAgentRunListener: () => {
     electronAPI.ipcRenderer.removeAllListeners("home-agent-run");
   },
+
+  // Routines
+  routinesGetAll: (): Promise<any[]> =>
+    electronAPI.ipcRenderer.invoke("routines-get-all"),
+
+  routinesSave: (
+    name: string,
+    query: string,
+  ): Promise<{ ok: true; routine: any } | { ok: false; error: string }> =>
+    electronAPI.ipcRenderer.invoke("routines-save", name, query),
+
+  routinesDelete: (id: string): Promise<{ ok: boolean }> =>
+    electronAPI.ipcRenderer.invoke("routines-delete", id),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -9,6 +9,22 @@ interface HomeAPI {
   toggleSidebar: () => Promise<boolean>;
 }
 
+interface Routine {
+  id: string;
+  name: string;
+  query: string;
+  createdAt: string;
+}
+
+interface RoutinesAPI {
+  getAll: () => Promise<Routine[]>;
+  save: (
+    name: string,
+    query: string,
+  ) => Promise<{ ok: true; routine: Routine } | { ok: false; error: string }>;
+  delete: (id: string) => Promise<{ ok: boolean }>;
+}
+
 interface SavedReportPayload {
   id: string;
   title: string;
@@ -32,5 +48,6 @@ declare global {
     electron: ElectronAPI;
     homeAPI: HomeAPI;
     reportAPI: ReportAPI;
+    routinesAPI: RoutinesAPI;
   }
 }

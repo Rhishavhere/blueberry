@@ -138,9 +138,12 @@ async function runResearchReportPipeline(args: {
 
 export class AgentRunner {
   private abortController: AbortController | null = null;
+  private currentRunId = 0;
 
   stop(): void {
+    this.currentRunId++; // invalidate the current run
     this.abortController?.abort();
+    this.abortController = null;
   }
 
   async run(options: {
@@ -172,7 +175,9 @@ export class AgentRunner {
       return;
     }
 
+    this.abortController?.abort(); // stop any previous run
     this.abortController = new AbortController();
+    const myRunId = ++this.currentRunId;
     const { signal } = this.abortController;
 
     const historyLines: string[] = [];
@@ -510,7 +515,10 @@ export class AgentRunner {
         emit({ type: "finished", reason: "max_planner_rounds" });
       }
     } finally {
-      this.abortController = null;
+      // Only clear the controller if it still belongs to this run
+      if (myRunId === this.currentRunId) {
+        this.abortController = null;
+      }
     }
   }
 }

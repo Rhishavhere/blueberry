@@ -1,9 +1,17 @@
-import React, { useState } from "react";
-import { Bot, PanelRight, Search } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Bot, Bookmark, PanelRight, Search, Trash2 } from "lucide-react";
 import { cn } from "@common/lib/utils";
 import { useDarkMode } from "@common/hooks/useDarkMode";
 
 type QueryMode = "search" | "agent";
+type HomeTab = "home" | "routines";
+
+interface Routine {
+  id: string;
+  name: string;
+  query: string;
+  createdAt: string;
+}
 
 function queryToNavigateUrl(raw: string): string {
   const q = raw.trim();
@@ -36,10 +44,61 @@ const ModePill: React.FC<{
   </button>
 );
 
+const TabPill: React.FC<{
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}> = ({ active, onClick, icon, label }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+      active
+        ? "bg-foreground text-background"
+        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+    )}
+  >
+    {icon}
+    {label}
+  </button>
+);
+
 export const HomeApp: React.FC = () => {
   useDarkMode();
+  const [homeTab, setHomeTab] = useState<HomeTab>("home");
   const [queryMode, setQueryMode] = useState<QueryMode>("search");
   const [searchQuery, setSearchQuery] = useState("");
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routinesLoading, setRoutinesLoading] = useState(false);
+
+  const loadRoutines = async () => {
+    if (!window.routinesAPI) return;
+    setRoutinesLoading(true);
+    try {
+      const r = await window.routinesAPI.getAll();
+      setRoutines(r);
+    } finally {
+      setRoutinesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadRoutines();
+  }, []);
+
+  const handleDeleteRoutine = async (id: string) => {
+    await window.routinesAPI.delete(id);
+    setRoutines((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleUseRoutine = async (routine: Routine) => {
+    await window.homeAPI.openSidebarWithAgent({
+      message: routine.query,
+      messageId: Date.now().toString(),
+    });
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,14 +119,22 @@ export const HomeApp: React.FC = () => {
 
   return (
     <div className="relative flex flex-col min-h-screen">
-      <div
-        className="absolute inset-0 -z-10 pointer-events-none opacity-35 bg-[length:auto_85%] md:bg-contain bg-left-bottom bg-no-repeat"
-        style={{ 
-          // backgroundImage: "url('/newton.png')" 
-          
-        }}
-        aria-hidden
-      />
+      {/* Top nav */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-1 py-1 rounded-xl border border-border bg-card/80 backdrop-blur-sm shadow-sm">
+        <TabPill
+          active={homeTab === "home"}
+          onClick={() => setHomeTab("home")}
+          icon={<Search className="size-3.5" />}
+          label="Home"
+        />
+        <TabPill
+          active={homeTab === "routines"}
+          onClick={() => { setHomeTab("routines"); void loadRoutines(); }}
+          icon={<Bookmark className="size-3.5" />}
+          label="Routines"
+        />
+      </div>
+
       <button
         type="button"
         onClick={() => void window.homeAPI.toggleSidebar()}
@@ -77,78 +144,137 @@ export const HomeApp: React.FC = () => {
         Sidebar
       </button>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-        <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center space-y-10">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Blueberry</h1>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Search the web with autonomous agents
-            </p>
-          </div>
-
-          <form
-            onSubmit={(e) => void onSubmit(e)}
-            className="w-full space-y-4"
-          >
-            <div
-              className={cn(
-                "flex gap-2 p-2 rounded-2xl border border-border shadow-sm bg-card text-left",
-                "focus-within:ring-1 focus-within:ring-ring"
-              )}
-            >
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={
-                  queryMode === "search"
-                    ? "Enter URL or Google Search"
-                    : "Ask the agent…"
-                }
-                className="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-sm outline-none"
-              />
-              <button
-                type="submit"
-                className="shrink-0 rounded-xl px-5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:opacity-90"
-              >
-                {queryMode === "search" ? "Go" : "Send"}
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <ModePill
-                active={queryMode === "search"}
-                onClick={() => setQueryMode("search")}
-                icon={<Search className="size-4" />}
-                label="Search"
-              />
-              <ModePill
-                active={queryMode === "agent"}
-                onClick={() => setQueryMode("agent")}
-                icon={<Bot className="size-4" />}
-                label="Agent"
-              />
-            </div>
-
-            {queryMode === "agent" && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                  Make Blueberry drive itself and get things done.
-                </p>
-              </div>
-            )}
-
-            {queryMode === "search" && (
-              <p className="text-xs text-muted-foreground">
-                Search the Internet. Paste an URL or Query
+      {/* Home Tab */}
+      {homeTab === "home" && (
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+          <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center space-y-10">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight">Blueberry</h1>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                Search the web with autonomous agents
               </p>
-            )}
-          </form>
+            </div>
 
-          <div className="pt-4 border-t border-border/60 w-full max-w-sm">
+            <form onSubmit={(e) => void onSubmit(e)} className="w-full space-y-4">
+              <div
+                className={cn(
+                  "flex gap-2 p-2 rounded-2xl border border-border shadow-sm bg-card text-left",
+                  "focus-within:ring-1 focus-within:ring-ring"
+                )}
+              >
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={
+                    queryMode === "search"
+                      ? "Enter URL or Google Search"
+                      : "Ask the agent…"
+                  }
+                  className="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-sm outline-none"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-xl px-5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  {queryMode === "search" ? "Go" : "Send"}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <ModePill
+                  active={queryMode === "search"}
+                  onClick={() => setQueryMode("search")}
+                  icon={<Search className="size-4" />}
+                  label="Search"
+                />
+                <ModePill
+                  active={queryMode === "agent"}
+                  onClick={() => setQueryMode("agent")}
+                  icon={<Bot className="size-4" />}
+                  label="Agent"
+                />
+              </div>
+
+              {queryMode === "agent" && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Make Blueberry drive itself and get things done.
+                  </p>
+                </div>
+              )}
+
+              {queryMode === "search" && (
+                <p className="text-xs text-muted-foreground">
+                  Search the Internet. Paste an URL or Query
+                </p>
+              )}
+            </form>
+
+            <div className="pt-4 border-t border-border/60 w-full max-w-sm" />
           </div>
-        </div>
-      </main>
+        </main>
+      )}
+
+      {/* Routines Tab */}
+      {homeTab === "routines" && (
+        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full">
+          <div className="flex items-center gap-3 mb-6">
+            <Bookmark className="size-5 text-primary" />
+            <h1 className="text-xl font-semibold tracking-tight">Saved Routines</h1>
+            <span className="ml-auto text-xs text-muted-foreground">{routines.length} routine{routines.length !== 1 ? "s" : ""}</span>
+          </div>
+
+          {routinesLoading ? (
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          ) : routines.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-20">
+              <Bookmark className="size-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground max-w-xs">
+                No routines yet. When an agent task completes, click <strong>Save Routine</strong> beside "All set!" to save it.
+              </p>
+              <p className="text-xs text-muted-foreground/70 font-mono">Then use @routine_name in any future task</p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {routines.map((r) => (
+                <li
+                  key={r.id}
+                  className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-sm font-semibold text-primary">@{r.name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{r.query}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => void handleUseRoutine(r)}
+                      title="Run this routine"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-80 transition-opacity"
+                    >
+                      Run
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteRoutine(r.id)}
+                      title="Delete routine"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </main>
+      )}
     </div>
   );
 };
