@@ -194,6 +194,12 @@ export class AgentRunner {
     /** Prevents infinite planning loops before first execute */
     let plannerRounds = 0;
     const maxPlannerRounds = maxSteps * 4 + 12;
+    /** Track visited URLs to prevent the agent re-visiting the same source. */
+    // const visitedUrls = new Set<string>();
+    /** Flag: was the last action a read_page on this URL? Prevents double-read. */
+    let lastReadPageUrl: string | null = null;
+    /** Detect if this is a research/analysis goal that requires save_report. */
+    const isResearchGoal = /research|analysiss|summary|report|plan|find out/i.test(goal);
 
     try {
       while (executedSteps < maxSteps && plannerRounds < maxPlannerRounds) {
@@ -298,6 +304,13 @@ export class AgentRunner {
 
         pendingPageSnapshot = null;
 
+        // const visitedSummary = visitedUrls.size > 0
+        //   ? `Already visited (do NOT navigate to these again): ${[...visitedUrls].join(", ")}`
+        //   : "";
+        const researchReminder = isResearchGoal
+          ? "REMINDER: This is a research/analysis goal. You MUST call save_report after read_page on important sources. The reporting agent has no data unless you do."
+          : "";
+
         const visionBase = useImageInRequest
           ? `[JSON-only. Reply must start with {.]\n\n` +
             [
@@ -309,6 +322,8 @@ export class AgentRunner {
               `Screenshot pixel size: ${dims!.shotW}x${dims!.shotH}`,
               `Viewport CSS: ${dims!.viewW}x${dims!.viewH}`,
               `click_xy must use screenshot pixel coordinates within [0, ${dims!.shotW - 1}] x [0, ${dims!.shotH - 1}].`,
+              researchReminder,
+              // visitedSummary,
               recent,
               snapshotSection,
             ]
@@ -325,6 +340,8 @@ export class AgentRunner {
                 `Planner round: ${plannerRounds}`,
                 `Current tab URL: ${tab.url}`,
                 `Current tab title: ${tab.title}`,
+                researchReminder,
+                // visitedSummary,
                 recent,
                 snapshotSection,
               ]
@@ -340,6 +357,8 @@ export class AgentRunner {
                 `Planner round: ${plannerRounds}`,
                 `Current tab URL: ${tab.url}`,
                 `Current tab title: ${tab.title}`,
+                researchReminder,
+                // visitedSummary,
                 recent,
                 snapshotSection,
               ]
@@ -435,6 +454,28 @@ export class AgentRunner {
 
         emit({ type: "step", step: executedSteps + 1, action });
 
+        // ── Runtime guard: block re-navigating to an already-visited URL ────
+        // if (action.action === "navigate") {
+        //   const normalised = action.url.split("#")[0].split("?")[0].toLowerCase();
+        //   if (visitedUrls.has(normalised)) {
+        //     emit({ type: "log", message: `[guard] Blocked duplicate navigate to ${action.url} — already visited this source.` });
+        //     historyLines.push(`{"action":"navigate_blocked_duplicate","url":"${action.url}"}`);
+        //     executedSteps += 1;
+        //     continue;
+        //   }
+        // }
+
+        // ── Runtime guard: block a second read_page on the same URL ─────────
+        if (action.action === "read_page") {
+          const tab = getActiveTab();
+          if (tab && lastReadPageUrl === tab.url) {
+            emit({ type: "log", message: `[guard] Blocked duplicate read_page on ${tab.url} — page was already fully read.` });
+            historyLines.push(`{"action":"read_page_blocked_duplicate","url":"${tab.url}"}`);
+            executedSteps += 1;
+            continue;
+          }
+        }
+
         if (action.action === "done") {
           const summary = action.summary.trim();
           emit({
@@ -498,6 +539,20 @@ export class AgentRunner {
         historyLines.push(JSON.stringify(action));
         executedSteps += 1;
         visionFromNow = true;
+
+        // ── Post-execute bookkeeping ─────────────────────────────────────────
+        // if (action.action === "navigate") {
+        //   const normalised = action.url.split("#")[0].split("?")[0].toLowerCase();
+        //   visitedUrls.add(normalised);
+        //   lastReadPageUrl = null; // new page, reset read guard
+        // }
+        if (action.action === "read_page") {
+          const tab = getActiveTab();
+          if (tab) lastReadPageUrl = tab.url;
+        }
+        if (action.action === "save_report") {
+          lastReadPageUrl = null; // after saving, allow read on a new page
+        }
 
         await sleep(350);
       }

@@ -183,9 +183,9 @@ export class Window {
       }
     }
 
-    // If no tabs left, close the window
+    // If no tabs left, get back to Home instead of closing window
     if (this.tabsMap.size === 0) {
-      this._baseWindow.close();
+      this.createTab();
     }
 
     return true;
