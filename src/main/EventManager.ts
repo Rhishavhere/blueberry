@@ -10,12 +10,14 @@ import { AgentRunner } from "./AgentRunner";
 import { HeadlessAgent } from "./agent/headlessAgent";
 import { Tab } from "./Tab";
 import { loadRoutines, addRoutine, deleteRoutine, updateRoutine } from "./agent/routineStorage";
+import { ProactiveAgent } from "./ProactiveAgent";
 
 export class EventManager {
   private mainWindow: Window;
   private miniWindow: MiniWindow;
   private agentRunner = new AgentRunner();
   private currentHeadlessAgent: HeadlessAgent | null = null;
+  private proactiveAgent = new ProactiveAgent();
 
   constructor(mainWindow: Window, miniWindow: MiniWindow) {
     this.mainWindow = mainWindow;
@@ -492,10 +494,12 @@ export class EventManager {
     ipcMain.handle("enter-mini-mode", () => {
       this.mainWindow.hide();
       this.miniWindow.show();
+      this.proactiveAgent.start(this.miniWindow.view.webContents);
       return true;
     });
 
     ipcMain.handle("exit-mini-mode", async (_, urlFromReact?: string) => {
+      this.proactiveAgent.stop();
       this.miniWindow.hide();
       this.mainWindow.show();
       
@@ -509,6 +513,16 @@ export class EventManager {
           await tab.loadURL(urlFromReact);
         }
       }
+      return true;
+    });
+
+    ipcMain.handle("proactive-accept", async (_, images: string[], suggestionText: string) => {
+      this.miniWindow.expandLow();
+      return await this.proactiveAgent.callAnthropic(images, suggestionText);
+    });
+
+    ipcMain.handle("proactive-dismiss", () => {
+      this.proactiveAgent.setProcessing(false);
       return true;
     });
 

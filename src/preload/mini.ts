@@ -16,6 +16,12 @@ const miniAPI = {
     electronAPI.ipcRenderer.on("headless-agent-event", (_, event) => callback(event));
     return () => electronAPI.ipcRenderer.removeAllListeners("headless-agent-event");
   },
+  onProactiveSuggestion: (callback: (data: { text: string, images: string[] }) => void) => {
+    electronAPI.ipcRenderer.on("proactive-suggestion", (_, data) => callback(data));
+    return () => electronAPI.ipcRenderer.removeAllListeners("proactive-suggestion");
+  },
+  acceptProactive: (images: string[], prompt: string) => electronAPI.ipcRenderer.invoke("proactive-accept", images, prompt),
+  dismissProactive: () => electronAPI.ipcRenderer.invoke("proactive-dismiss"),
   getHomePreloadPath: () => {
     return pathToFileURL(join(__dirname, "home.js")).href;
   },

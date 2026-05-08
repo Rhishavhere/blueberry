@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Maximize2, Sparkle, Square } from 'lucide-react'
 import { MiniReport } from './MiniReport'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export const MiniApp: React.FC = () => {
   const [query, setQuery] = useState('')
@@ -15,6 +17,12 @@ export const MiniApp: React.FC = () => {
   const [agentReportUrl, setAgentReportUrl] = useState('')
   const [reportError, setReportError] = useState('')
   const [showFullReport, setShowFullReport] = useState(false)
+
+  // Proactive States
+  const [proactiveHelp, setProactiveHelp] = useState<string | null>(null)
+  const [proactiveImages, setProactiveImages] = useState<string[]>([])
+  const [proactiveResult, setProactiveResult] = useState<string | null>(null)
+  const [isProactiveWorking, setIsProactiveWorking] = useState(false)
 
   const webviewRef = useRef<Electron.WebviewTag>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
@@ -54,6 +62,18 @@ export const MiniApp: React.FC = () => {
       } else if (event.type === 'finished') {
         setAgentPhase('done');
       }
+    });
+    return cleanup;
+  }, []);
+
+  // Proactive Suggestion Listener
+  useEffect(() => {
+    if (!window.miniAPI) return;
+    // @ts-ignore
+    const cleanup = window.miniAPI.onProactiveSuggestion((data: any) => {
+      setProactiveHelp(data.text);
+      setProactiveImages(data.images);
+      setIsExpanded(true); // Expand dock to show help
     });
     return cleanup;
   }, []);
@@ -143,6 +163,14 @@ export const MiniApp: React.FC = () => {
       setAgentPhase('done');
       setAgentLogs(prev => [...prev, "[User] Agent stopped manually."]);
     }
+  }
+
+  const handleProactiveSure = async () => {
+    setIsProactiveWorking(true);
+    // @ts-ignore
+    const result = await window.miniAPI.acceptProactive(proactiveImages, proactiveHelp);
+    setProactiveResult(result);
+    setIsProactiveWorking(false);
   }
 
   return (
@@ -237,6 +265,67 @@ export const MiniApp: React.FC = () => {
                 catch { return ''; }
               })()} 
             />
+          </div>
+        </div>
+      )}
+
+      {/* Proactive Help View */}
+      {isExpanded && proactiveHelp && !proactiveResult && (
+        <div className="w-[500px] mt-4 bg-white dark:bg-black/80 rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkle className="w-5 h-5 text-blue-500" />
+            <span className="font-semibold text-gray-800 dark:text-gray-200">Proactive Suggestion</span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+            {isProactiveWorking ? "Generating help..." : proactiveHelp}
+          </p>
+          {!isProactiveWorking && (
+            <div className="flex justify-end mt-2 gap-2">
+              <button 
+                onClick={() => {
+                  setProactiveHelp(null);
+                  setProactiveImages([]);
+                  // @ts-ignore
+                  window.miniAPI.dismissProactive();
+                }}
+                className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium rounded-lg transition-colors"
+              >
+                No thanks
+              </button>
+              <button 
+                onClick={handleProactiveSure}
+                className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Sure
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Proactive Result View */}
+      {isExpanded && proactiveResult && (
+        <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10 bg-white relative p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkle className="w-5 h-5 text-purple-500" />
+              <span className="font-semibold text-gray-800 dark:text-gray-200">Proactive Help</span>
+            </div>
+            <button 
+              onClick={() => {
+                setProactiveResult(null);
+                setProactiveHelp(null);
+                setProactiveImages([]);
+                // @ts-ignore
+                window.miniAPI.dismissProactive();
+              }}
+              className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="w-full h-full overflow-y-auto text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{proactiveResult}</ReactMarkdown>
           </div>
         </div>
       )}
