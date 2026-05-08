@@ -25,6 +25,15 @@ interface RoutinesAPI {
     query: string,
   ) => Promise<{ ok: true; routine: Routine } | { ok: false; error: string }>;
   delete: (id: string) => Promise<{ ok: boolean }>;
+  updateSchedule: (
+    id: string,
+    schedule: {
+      type: "daily" | "weekly" | "hourly";
+      time?: string;
+      dayOfWeek?: number;
+      enabled: boolean;
+    } | null
+  ) => Promise<{ ok: boolean; routine?: Routine }>;
 }
 
 interface SavedReportPayload {

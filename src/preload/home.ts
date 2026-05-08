@@ -85,6 +85,8 @@ const routinesAPI = {
     ipcRenderer.invoke("routines-save", name, query),
   delete: (id: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("routines-delete", id),
+  updateSchedule: (id: string, schedule: any): Promise<{ ok: boolean; routine?: any }> =>
+    ipcRenderer.invoke("routines-update-schedule", id, schedule),
 };
 
 if (process.contextIsolated) {

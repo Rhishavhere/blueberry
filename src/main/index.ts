@@ -4,6 +4,7 @@ import { Window } from "./Window";
 import { MiniWindow } from "./MiniWindow";
 import { AppMenu } from "./Menu";
 import { EventManager } from "./EventManager";
+import { scheduler } from "./agent/scheduler";
 
 let mainWindow: Window | null = null;
 let miniWindow: MiniWindow | null = null;
@@ -17,11 +18,13 @@ const createWindow = (): Window => {
   eventManager = new EventManager(window, miniWindow);
   return window;
 };
-
 app.whenReady().then(() => {
   electronApp.setAppUserModelId("com.electron");
 
   mainWindow = createWindow();
+  
+  // Start the routine scheduler
+  scheduler.start();
 
   // The miniWindow stays alive in the background, which prevents 'window-all-closed'
   // from firing. We should explicitly quit the app when the main window is closed.

@@ -7,6 +7,14 @@ export interface Routine {
   name: string;
   query: string;
   createdAt: string;
+  schedule?: {
+    type: "daily" | "weekly" | "hourly";
+    time?: string; // HH:MM for daily/weekly
+    dayOfWeek?: number; // 0-6 for weekly
+    enabled: boolean;
+  };
+  lastRun?: string; // ISO timestamp
+  nextRun?: string; // ISO timestamp
 }
 
 function routinesFilePath(): string {
@@ -54,4 +62,14 @@ export async function deleteRoutine(id: string): Promise<boolean> {
   if (filtered.length === routines.length) return false;
   await saveRoutines(filtered);
   return true;
+}
+
+export async function updateRoutine(id: string, updates: Partial<Routine>): Promise<Routine | null> {
+  const routines = await loadRoutines();
+  const idx = routines.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  
+  routines[idx] = { ...routines[idx], ...updates };
+  await saveRoutines(routines);
+  return routines[idx];
 }

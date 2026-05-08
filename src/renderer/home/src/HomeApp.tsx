@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Bot, Bookmark, Plus, PanelRight, Search, Trash2, X, BookOpen, ExternalLink } from "lucide-react";
+import { Bot, Bookmark, Plus, PanelRight, Search, Trash2, X, BookOpen, ExternalLink, Clock } from "lucide-react";
 import { cn } from "@common/lib/utils";
 import { useDarkMode } from "@common/hooks/useDarkMode";
 
@@ -11,6 +11,14 @@ interface Routine {
   name: string;
   query: string;
   createdAt: string;
+  schedule?: {
+    type: "daily" | "weekly" | "hourly";
+    time?: string;
+    dayOfWeek?: number;
+    enabled: boolean;
+  };
+  lastRun?: string;
+  nextRun?: string;
 }
 
 function queryToNavigateUrl(raw: string): string {
@@ -77,10 +85,15 @@ export const HomeApp: React.FC = () => {
   const [createName, setCreateName] = useState("");
   const [createQuery, setCreateQuery] = useState("");
   const [creating, setCreating] = useState(false);
-
   // Articles state
   const [reports, setReports] = useState<Array<{ id: string; title: string; createdAt: string }>>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+
+  // Scheduling state
+  const [schedulingRoutineId, setSchedulingRoutineId] = useState<string | null>(null);
+  const [scheduleType, setScheduleType] = useState<"daily" | "weekly" | "hourly">("daily");
+  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const [scheduleDay, setScheduleDay] = useState(1); // Monday
 
   const loadRoutines = async () => {
     if (!window.routinesAPI) return;
@@ -352,35 +365,159 @@ export const HomeApp: React.FC = () => {
               {routines.map((r) => (
                 <li
                   key={r.id}
-                  className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow"
+                  className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-sm font-semibold text-primary">@{r.name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </span>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-sm font-semibold text-primary">@{r.name}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(r.createdAt).toLocaleDateString()}
+                        </span>
+                        {r.schedule?.enabled && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                            <Clock className="size-3" />
+                            Scheduled
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{r.query}</p>
+                      
+                      {r.nextRun && r.schedule?.enabled && (
+                        <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="size-3" />
+                          <span>Next run: {new Date(r.nextRun).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{r.query}</p>
+                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => void handleUseRoutine(r)}
+                        title="Run this routine"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-80 transition-opacity"
+                      >
+                        Run
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSchedulingRoutineId(schedulingRoutineId === r.id ? null : r.id);
+                          if (r.schedule) {
+                            setScheduleType(r.schedule.type);
+                            setScheduleTime(r.schedule.time || "09:00");
+                            setScheduleDay(r.schedule.dayOfWeek ?? 1);
+                          }
+                        }}
+                        title="Schedule this routine"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Clock className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteRoutine(r.id)}
+                        title="Delete routine"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={() => void handleUseRoutine(r)}
-                      title="Run this routine"
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-80 transition-opacity"
-                    >
-                      Run
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteRoutine(r.id)}
-                      title="Delete routine"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
+
+                  {/* Schedule Editor */}
+                  {schedulingRoutineId === r.id && (
+                    <div className="mt-2 pt-3 border-t border-border/60 text-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">Configure Schedule</span>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={r.schedule?.enabled ?? false}
+                              onChange={async (e) => {
+                                const enabled = e.target.checked;
+                                await window.routinesAPI.updateSchedule(r.id, {
+                                  type: scheduleType,
+                                  time: scheduleTime,
+                                  dayOfWeek: scheduleDay,
+                                  enabled,
+                                });
+                                void loadRoutines();
+                              }}
+                              className="rounded border-border text-primary focus:ring-ring size-3"
+                            />
+                            <span>Enabled</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">Frequency</label>
+                          <select
+                            value={scheduleType}
+                            onChange={(e) => setScheduleType(e.target.value as any)}
+                            className="w-full border border-border rounded-md px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-ring text-xs"
+                          >
+                            <option value="hourly">Hourly</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                          </select>
+                        </div>
+
+                        {scheduleType !== "hourly" && (
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1 block">Time</label>
+                            <input
+                              type="time"
+                              value={scheduleTime}
+                              onChange={(e) => setScheduleTime(e.target.value)}
+                              className="w-full border border-border rounded-md px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-ring text-xs"
+                            />
+                          </div>
+                        )}
+
+                        {scheduleType === "weekly" && (
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1 block">Day</label>
+                            <select
+                              value={scheduleDay}
+                              onChange={(e) => setScheduleDay(Number(e.target.value))}
+                              className="w-full border border-border rounded-md px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-ring text-xs"
+                            >
+                              <option value={1}>Monday</option>
+                              <option value={2}>Tuesday</option>
+                              <option value={3}>Wednesday</option>
+                              <option value={4}>Thursday</option>
+                              <option value={5}>Friday</option>
+                              <option value={6}>Saturday</option>
+                              <option value={0}>Sunday</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await window.routinesAPI.updateSchedule(r.id, {
+                              type: scheduleType,
+                              time: scheduleTime,
+                              dayOfWeek: scheduleDay,
+                              enabled: true,
+                            });
+                            setSchedulingRoutineId(null);
+                            void loadRoutines();
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-primary text-primary-foreground hover:opacity-90"
+                        >
+                          Save Schedule
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

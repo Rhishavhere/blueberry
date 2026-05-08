@@ -9,7 +9,7 @@ import { runPageMutation } from "./agent/mutateRunner";
 import { AgentRunner } from "./AgentRunner";
 import { HeadlessAgent } from "./agent/headlessAgent";
 import { Tab } from "./Tab";
-import { loadRoutines, addRoutine, deleteRoutine } from "./agent/routineStorage";
+import { loadRoutines, addRoutine, deleteRoutine, updateRoutine } from "./agent/routineStorage";
 
 export class EventManager {
   private mainWindow: Window;
@@ -608,6 +608,14 @@ export class EventManager {
     ipcMain.handle("routines-delete", async (_, id: string) => {
       const ok = await deleteRoutine(String(id ?? "").trim());
       return { ok };
+    });
+
+    ipcMain.handle("routines-update-schedule", async (_, id: string, schedule: any) => {
+      const routine = await updateRoutine(String(id ?? "").trim(), { 
+        schedule,
+        nextRun: undefined // Clear nextRun so the scheduler recalculates it
+      });
+      return { ok: !!routine, routine };
     });
   }
 
