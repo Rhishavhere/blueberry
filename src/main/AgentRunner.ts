@@ -452,8 +452,7 @@ export class AgentRunner {
           return;
         }
 
-        emit({ type: "step", step: executedSteps + 1, action });
-
+        // The emit step is moved below the guards so blocked actions don't show in UI.
         // ── Runtime guard: block re-navigating to an already-visited URL ────
         // if (action.action === "navigate") {
         //   const normalised = action.url.split("#")[0].split("?")[0].toLowerCase();
@@ -469,12 +468,15 @@ export class AgentRunner {
         if (action.action === "read_page") {
           const tab = getActiveTab();
           if (tab && lastReadPageUrl === tab.url) {
-            emit({ type: "log", message: `[guard] Blocked duplicate read_page on ${tab.url} — page was already fully read.` });
-            historyLines.push(`{"action":"read_page_blocked_duplicate","url":"${tab.url}"}`);
-            executedSteps += 1;
+            emit({ type: "log", message: `[guard] Blocked duplicate read_page on ${tab.url}.` });
+            historyLines.push(`{"action":"error","message":"You ALREADY called read_page on this URL. It is blocked. DO NOT call read_page again until you navigate somewhere else. Call save_report or done."}`);
+            // Do NOT increment executedSteps so it doesn't count against budget
             continue;
           }
         }
+
+        // Emit the step to the UI only if it passes all guards
+        emit({ type: "step", step: executedSteps + 1, action });
 
         if (action.action === "done") {
           const summary = action.summary.trim();
@@ -549,9 +551,6 @@ export class AgentRunner {
         if (action.action === "read_page") {
           const tab = getActiveTab();
           if (tab) lastReadPageUrl = tab.url;
-        }
-        if (action.action === "save_report") {
-          lastReadPageUrl = null; // after saving, allow read on a new page
         }
 
         await sleep(350);
