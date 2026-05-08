@@ -10,6 +10,15 @@ export class MiniWindow {
   private readonly defaultHeight = 60;
   private readonly expandedHeight = 600;
 
+  private getWindowIconPath(): string | undefined {
+    if (process.platform !== "win32") {
+      return undefined;
+    }
+    return process.env.NODE_ENV === "development"
+      ? join(process.cwd(), "resources", "icon.ico")
+      : join(process.resourcesPath, "resources", "icon.ico");
+  }
+
   constructor() {
     this.baseWindow = new BaseWindow({
       width: this.defaultWidth,
@@ -18,9 +27,10 @@ export class MiniWindow {
       frame: false,
       transparent: true,
       hasShadow: false,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
       resizable: false,
       skipTaskbar: false,
+      ...(this.getWindowIconPath() ? { icon: this.getWindowIconPath() } : {}),
     });
 
     // Center at the top of the screen

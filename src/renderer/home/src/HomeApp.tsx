@@ -171,8 +171,19 @@ export const HomeApp: React.FC = () => {
 
   return (
     <div className="relative flex flex-col min-h-screen">
+
+      <div
+        className="absolute inset-0 pointer-events-none z-0 opacity-90 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('/backdrop.jpg')",
+          backgroundPositionY: 0,
+          backgroundPositionX: 0,
+        }}
+        aria-hidden
+      />
+
       {/* Top nav */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-1 py-1 rounded-xl border border-border bg-card/80 backdrop-blur-sm shadow-sm">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-1 py-1 rounded-xl border border-border bg-card/80 backdrop-blur-sm shadow-sm">
         <TabPill
           active={homeTab === "home"}
           onClick={() => setHomeTab("home")}
@@ -196,7 +207,7 @@ export const HomeApp: React.FC = () => {
       <button
         type="button"
         onClick={() => void window.homeAPI.toggleSidebar()}
-        className="absolute top-4 right-6 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border border-border bg-card/80 hover:bg-muted backdrop-blur-sm"
+        className="absolute top-4 right-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border border-border bg-card/80 hover:bg-muted backdrop-blur-sm"
       >
         <PanelRight className="size-4" />
         Sidebar
@@ -204,7 +215,7 @@ export const HomeApp: React.FC = () => {
 
       {/* Home Tab */}
       {homeTab === "home" && (
-        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 z-10">
           <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center space-y-10">
             <div className="space-y-2">
               <h1 className="text-3xl font-semibold tracking-tight">Blueberry</h1>
@@ -276,7 +287,7 @@ export const HomeApp: React.FC = () => {
 
       {/* Routines Tab */}
       {homeTab === "routines" && (
-        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full">
+        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full z-20">
           <div className="flex items-center gap-3 mb-6">
             <Bookmark className="size-5 text-primary" />
             <h1 className="text-xl font-semibold tracking-tight">Saved Routines</h1>
@@ -527,7 +538,7 @@ export const HomeApp: React.FC = () => {
 
       {/* Articles Tab */}
       {homeTab === "articles" && (
-        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full">
+        <main className="flex-1 flex flex-col px-6 pt-20 pb-8 max-w-2xl mx-auto w-full z-20">
           <div className="flex items-center gap-3 mb-6">
             <BookOpen className="size-5 text-primary" />
             <h1 className="text-xl font-semibold tracking-tight">Saved Reports</h1>
