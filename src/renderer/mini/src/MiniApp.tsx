@@ -73,6 +73,7 @@ export const MiniApp: React.FC = () => {
     const cleanup = window.miniAPI.onProactiveSuggestion((data: any) => {
       setProactiveHelp(data.text);
       setProactiveImages(data.images);
+      setProactiveResult(null); // Clear previous result so the dock expands again
       setIsExpanded(true); // Expand dock to show help
     });
     return cleanup;
@@ -177,70 +178,109 @@ export const MiniApp: React.FC = () => {
     <div className="flex flex-col w-full h-screen items-center app-region-no-drag">
       
       {/* Pill Container (Dock) */}
-      <form 
-        onSubmit={handleSearch} 
-        className="flex w-[400px] h-[42px] items-center justify-center bg-white dark:bg-black/60 rounded-full px-6 app-region-drag"
+      {/* Pill Container (Dock) */}
+      <div 
+        className={`flex items-center justify-center bg-white dark:bg-black/60 shadow-lg app-region-drag transition-all duration-300 ${
+          proactiveHelp && !proactiveResult ? 'w-[500px] h-[70px] rounded-3xl px-4' : 'w-[400px] h-[42px] rounded-full px-6'
+        }`}
       >
-        
-        {/* Blueberry Logo */}
-        <div id='dock-logo' className="flex items-center justify-center mr-3 w-5 h-5 flex-shrink-0 opacity-80 app-region-drag">
-          <img src="/icon.svg" alt="Logo" className="w-full h-full object-contain pointer-events-none" onError={(e) => {
-              (e.target as HTMLImageElement).src = '/icon.png';
-          }} />
-        </div>
-
-        {/* Input */}
-        <input
-          id="mini-search-input"
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={isAgentMode ? "Ask agent" : "Search"}
-          className="flex-1 bg-transparent border-none outline-none text-md font-medium text-gray-600 dark:text-gray-100 placeholder:text-gray-400 app-region-no-drag"
-          autoComplete="off"
-          spellCheck={false}
-        />
-
-        {/* Actions */}
-        <div className="flex items-center ml-2 gap-1 flex-shrink-0 app-region-no-drag">
-          {isAgentMode && agentPhase === 'working' ? (
-            <button 
-                type="button"
-                onClick={handleStopAgent}
-                title="Stop Agent"
-                className="w-7 h-7 rounded-full bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400 hover:bg-red-200/40 dark:hover:bg-red-900/60 transition-colors focus:outline-none flex items-center justify-center"
-            >
-                <Square className="w-2 h-2" />
-            </button>
-          ) : (
-            <button 
-                type="button"
-                onClick={() => setIsAgentMode(!isAgentMode)}
-                title="Toggle Agent Mode"
-                className={`w-7 h-7 rounded-full transition-colors focus:outline-none flex items-center justify-center ${isAgentMode ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-            >
-                <Sparkle className="w-4 h-4" />
-            </button>
-          )}
-          <button 
-              type="button"
-              onClick={handleExpandToMain}
-              title="Return to Main Window"
-              className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
+        {proactiveHelp && !proactiveResult ? (
+          /* Proactive Suggestion View inside Dock */
+          <div className="flex w-full items-center justify-between app-region-no-drag gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* <Sparkle className="w-5 h-5 text-blue-500 flex-shrink-0" /> */}
+              <p className="text-sm text-gray-700 dark:text-gray-200 leading-tight line-clamp-2">
+                {isProactiveWorking ? "Just a sec..." : proactiveHelp}
+              </p>
+            </div>
+            {!isProactiveWorking && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button 
+                  onClick={() => {
+                    setProactiveHelp(null);
+                    setProactiveImages([]);
+                    // @ts-ignore
+                    window.miniAPI.dismissProactive();
+                  }}
+                  className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-white/10 dark:hover:bg-white/20 text-gray-800 dark:text-gray-200 text-xs font-medium rounded-full transition-colors"
+                >
+                  No
+                </button>
+                <button 
+                  onClick={handleProactiveSure}
+                  className="px-2.5 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-full transition-colors"
+                >
+                  Sure
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Normal Search Bar */
+          <form 
+            onSubmit={handleSearch} 
+            className="flex w-full h-full items-center justify-center app-region-drag"
           >
-              <Maximize2 className="w-4 h-4" />
-          </button>
-          <button 
-              type="button"
-              onClick={handleClose}
-              title={isExpanded ? "Close Result" : "Close Mini Mode"}
-              className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
-          >
-              <X className="w-4 h-4" />
-          </button>
-        </div>
+            {/* Blueberry Logo */}
+            <div id='dock-logo' className="flex items-center justify-center mr-3 w-5 h-5 flex-shrink-0 opacity-80 app-region-drag">
+              <img src="/icon.svg" alt="Logo" className="w-full h-full object-contain pointer-events-none" onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/icon.png';
+              }} />
+            </div>
 
-      </form>
+            {/* Input */}
+            <input
+              id="mini-search-input"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={isAgentMode ? "Ask agent" : "Search"}
+              className="flex-1 bg-transparent border-none outline-none text-md font-medium text-gray-600 dark:text-gray-100 placeholder:text-gray-400 app-region-no-drag"
+              autoComplete="off"
+              spellCheck={false}
+            />
+
+            {/* Actions */}
+            <div className="flex items-center ml-2 gap-1 flex-shrink-0 app-region-no-drag">
+              {isAgentMode && agentPhase === 'working' ? (
+                <button 
+                    type="button"
+                    onClick={handleStopAgent}
+                    title="Stop Agent"
+                    className="w-7 h-7 rounded-full bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400 hover:bg-red-200/40 dark:hover:bg-red-900/60 transition-colors focus:outline-none flex items-center justify-center"
+                >
+                    <Square className="w-2 h-2" />
+                </button>
+              ) : (
+                <button 
+                    type="button"
+                    onClick={() => setIsAgentMode(!isAgentMode)}
+                    title="Toggle Agent Mode"
+                    className={`w-7 h-7 rounded-full transition-colors focus:outline-none flex items-center justify-center ${isAgentMode ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                >
+                    <Sparkle className="w-4 h-4" />
+                </button>
+              )}
+              <button 
+                  type="button"
+                  onClick={handleExpandToMain}
+                  title="Return to Main Window"
+                  className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
+              >
+                  <Maximize2 className="w-4 h-4" />
+              </button>
+              <button 
+                  type="button"
+                  onClick={handleClose}
+                  title={isExpanded ? "Close Result" : "Close Mini Mode"}
+                  className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
+              >
+                  <X className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {/* Embedded Webview Result (Normal Search) */}
       {isExpanded && !isAgentMode && searchUrl && (
@@ -269,47 +309,14 @@ export const MiniApp: React.FC = () => {
         </div>
       )}
 
-      {/* Proactive Help View */}
-      {isExpanded && proactiveHelp && !proactiveResult && (
-        <div className="w-[500px] mt-4 bg-white dark:bg-black/80 rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkle className="w-5 h-5 text-blue-500" />
-            <span className="font-semibold text-gray-800 dark:text-gray-200">Proactive Suggestion</span>
-          </div>
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            {isProactiveWorking ? "Generating help..." : proactiveHelp}
-          </p>
-          {!isProactiveWorking && (
-            <div className="flex justify-end mt-2 gap-2">
-              <button 
-                onClick={() => {
-                  setProactiveHelp(null);
-                  setProactiveImages([]);
-                  // @ts-ignore
-                  window.miniAPI.dismissProactive();
-                }}
-                className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium rounded-lg transition-colors"
-              >
-                No thanks
-              </button>
-              <button 
-                onClick={handleProactiveSure}
-                className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Sure
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+
 
       {/* Proactive Result View */}
       {isExpanded && proactiveResult && (
         <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-white relative p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 bg-black/5 p-3 rounded-xl">
             <div className="flex items-center gap-2">
-              <Sparkle className="w-5 h-5 text-purple-500" />
-              <span className="font-semibold text-gray-800 dark:text-gray-200">Proactive Help</span>
+              <span className="font-serif text-xl text-gray-800 dark:text-gray-200">Blueberry's here</span>
             </div>
             <button 
               onClick={() => {

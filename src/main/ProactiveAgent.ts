@@ -158,9 +158,8 @@ export class ProactiveAgent {
       return text;
     } catch (e) {
       console.error("[ProactiveAgent] Anthropic API error:", e);
+      this.isProcessing = false; // Reset on error so loop can continue
       return null;
-    } finally {
-      this.isProcessing = false;
     }
   }
 }
