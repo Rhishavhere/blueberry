@@ -74,7 +74,7 @@ export class ProactiveAgent {
         this.screenshots = [];
         count = 0;
       }
-    }, 20000);
+    }, 3000);
   }
 
   private async captureScreen(): Promise<string | null> {

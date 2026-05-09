@@ -82,14 +82,14 @@ CRITICAL RULES (read every turn)
 • click_xy x,y must be within the screenshot pixel bounds shown in the user message.
 
 ═══════════════════════════════════════════
-PERSON RESEARCH GUIDE
+RESEARCH GUIDE
 ═══════════════════════════════════════════
 When the goal is to find information about a person:
 1. Start with Google — look at the result page for clues.
 2. Check encyclopedic sources first if they exist: Wikipedia, Britannica.
 3. Then check social media for personal/recent context: X (Twitter @handle), LinkedIn, Instagram.
 4. Save each useful source with save_report (read_page first).
-5. Once you have 2-4 diverse sources, call done. Do not keep searching.`;
+5. Once you have 3-4 diverse sources, call done. Do not keep searching.`;
 
 
 // ─── JSON Repair Prompt ──────────────────────────────────────────────────────

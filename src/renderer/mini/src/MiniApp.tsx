@@ -313,27 +313,46 @@ export const MiniApp: React.FC = () => {
 
       {/* Proactive Result View */}
       {isExpanded && proactiveResult && (
-        <div className="w-[750px] flex-1 mt-4 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-white relative p-4">
-          <div className="flex items-center justify-between mb-4 bg-black/5 p-3 rounded-xl">
-            <div className="flex items-center gap-2">
-              <span className="font-serif text-xl text-gray-800 dark:text-gray-200">Blueberry's here</span>
-            </div>
-            <button 
-              onClick={() => {
-                setProactiveResult(null);
-                setProactiveHelp(null);
-                setProactiveImages([]);
+        <div className="flex gap-4 mt-4 min-h-0 max-w-[90vw] flex-1">
+
+          <div className="w-[700px] rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-white relative p-4 flex flex-col h-full">
+            <div className="flex-1 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden bg-gray-50">
+              <webview 
+                src={`https://www.google.com/search?q=${encodeURIComponent(proactiveHelp || "")}`}
+                className="w-full h-full"
                 // @ts-ignore
-                window.miniAPI.dismissProactive();
-              }}
-              className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
-            >
-              <X className="w-4 h-4" />
-            </button>
+                allowpopups="true"
+              />
+            </div>
           </div>
-          <div className="w-full h-full overflow-y-auto text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{proactiveResult}</ReactMarkdown>
+
+
+          {/* Div 1: Help Text */}
+          <div className="w-[400px] rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-white relative p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-4 bg-black/5 p-3 rounded-xl">
+              <div className="flex items-center gap-2">
+                <span className="font-serif text-xl text-gray-800 dark:text-gray-200">Blueberry's here</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setProactiveResult(null);
+                  setProactiveHelp(null);
+                  setProactiveImages([]);
+                  // @ts-ignore
+                  window.miniAPI.dismissProactive();
+                }}
+                className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors focus:outline-none flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto text-gray-700 dark:text-gray-200 text-sm leading-relaxed pr-2">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{proactiveResult}</ReactMarkdown>
+            </div>
           </div>
+          
+          {/* Div 2: Search Results */}
+          
         </div>
       )}
 

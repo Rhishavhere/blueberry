@@ -520,7 +520,7 @@ export class EventManager {
     });
 
     ipcMain.handle("proactive-accept", async (_, images: string[], suggestionText: string) => {
-      this.miniWindow.expandLow();
+      this.miniWindow.expandProactiveResult();
       return await this.proactiveAgent.callAnthropic(images, suggestionText);
     });
 

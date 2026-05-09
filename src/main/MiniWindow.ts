@@ -130,12 +130,37 @@ export class MiniWindow {
     this.updateBounds();
   }
 
+  public expandProactiveResult(): void {
+    this.isExpanded = true;
+    
+    const { screen } = require("electron");
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    
+    const newWidth = 1200;
+    const newHeight = 700;
+    
+    this.baseWindow.setBounds({
+      x: Math.round(width / 2 - newWidth / 2),
+      y: 20,
+      width: newWidth,
+      height: newHeight,
+    });
+
+    this.updateBounds();
+  }
+
   public collapse(): void {
     this.isExpanded = false;
     
-    const bounds = this.baseWindow.getBounds();
+    const { screen } = require("electron");
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    
     this.baseWindow.setBounds({
-      ...bounds,
+      x: Math.round(width / 2 - this.defaultWidth / 2),
+      y: 20,
+      width: this.defaultWidth,
       height: this.defaultHeight,
     });
 
