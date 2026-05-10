@@ -220,7 +220,6 @@ In search mode, submitting expands the window to 600px tall and loads the result
 
 In agent mode, the window expands to 300px and shows the headless agent's live log while it works. Once done, a conclusion + "Open Full Report" button appears. Tapping it switches to a full report view rendered inline via `MiniReport.tsx` — same styling as the main report viewer, just embedded in the mini window.
 
-The mini window is frameless and transparent — the pill shape is all CSS `border-radius` with a white/dark background.
 
 ---
 
@@ -252,9 +251,15 @@ The scheduler uses this same `HeadlessAgent` for all scheduled routine runs — 
 
 **Branch:** `proactive`
 
-Not merged to main yet. The idea is agents that trigger on a condition rather than on demand — "notify me when a price drops below X", "summarize new items in this feed every morning", etc.
+This one lives in Mini Mode. Instead of you asking the agent for help, the agent watches what you're doing and offers help on its own.
 
-The scheduling infrastructure from the Routines feature is the foundation here. The proactive branch extends it with event-driven and condition-based triggers beyond just time schedules. Still being worked out.
+It periodically takes a screenshot of your entire screen — not just the browser, your whole desktop. Whatever you have open: Notion, a spreadsheet, Figma, a code editor, anything. It sends that screenshot to the LLM with context about what's visible and asks "does this person look like they need help with something?"
+
+If the model identifies something actionable, a small suggestion surfaces in the mini dock — something like "Looks like you're building a budget sheet, want me to pull current pricing for those items?" You can dismiss it or hit yes. If you say yes, it spins up the `HeadlessAgent` on that exact task and runs it in the background, same as a manual agent run.
+
+The key design decision here is that it's **opt-in per suggestion** — the agent notices and offers, but never acts without you confirming. The screen capture happens on a timer but the agent only speaks up when it has something genuinely useful to say, not on every tick.
+
+
 
 ---
 
