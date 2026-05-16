@@ -73,7 +73,7 @@ export class RoutineScheduler {
       await agent.run({
         goal: routine.query,
         hiddenTab: headlessTab,
-        emit: (event) => {
+        emit: (_event) => {
           // console.log(`[scheduler] Routine @${routine.name} event:`, event.type);
         }
       });

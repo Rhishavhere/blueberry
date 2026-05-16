@@ -1,6 +1,8 @@
 import { generateText, type LanguageModel } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
+import { saveAgentReport } from "./agentReportStorage";
+import type { AgentEvent } from "./agentSchema";
 
 export type ReportSegmentInput = {
   index: number;
@@ -111,7 +113,6 @@ export async function generateResearchReportMarkdown(args: {
     system: REPORT_SYSTEM,
     abortSignal: args.signal,
     maxRetries: 1,
-    temperature: 0.35,
     maxOutputTokens: 8192,
     messages: [
       {
@@ -144,3 +145,46 @@ export async function generateResearchReportMarkdown(args: {
     title: extractTitleFromMarkdown(markdown),
   };
 }
+
+export type ReportSegmentStored = { url: string; title: string; body: string };
+
+export async function runResearchReportPipeline(args: {
+  goal: string;
+  segments: ReportSegmentStored[];
+  historyLines: readonly string[];
+  emit: (event: AgentEvent) => void;
+  signal: AbortSignal;
+}): Promise<void> {
+  if (args.segments.length === 0 || args.signal.aborted) return;
+  args.emit({ type: "report_generating" });
+  try {
+    const segments = args.segments.map((s, i) => ({
+      index: i + 1,
+      url: s.url,
+      title: s.title,
+      body: s.body,
+    }));
+    const { markdown, title } = await generateResearchReportMarkdown({
+      goal: args.goal,
+      segments,
+      historyLines: args.historyLines,
+      signal: args.signal,
+    });
+    const { id, viewerUrl } = await saveAgentReport({
+      title,
+      markdown,
+    });
+    args.emit({
+      type: "report",
+      id,
+      title,
+      url: viewerUrl,
+    });
+  } catch (e) {
+    args.emit({
+      type: "report_error",
+      message: `Report writer failed: ${String(e)}`,
+    });
+  }
+}
+

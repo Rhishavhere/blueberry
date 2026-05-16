@@ -1,6 +1,6 @@
 import { generateText, type LanguageModel } from "ai";
 import { z } from "zod";
-import { COERCE_SYSTEM } from "./agentPrompts";
+import { COERCE_SYSTEM } from "./promptBuilder";
 
 export const AgentStepSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("see") }),
@@ -86,7 +86,6 @@ export async function parseOrRepairAgentStep(
     system: COERCE_SYSTEM,
     abortSignal: signal,
     maxRetries: 1,
-    temperature: 0,
     maxOutputTokens: 8192,
     messages: [
       {

@@ -1,10 +1,8 @@
-import { generateText, type LanguageModel } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
 import * as dotenv from "dotenv";
 import { join } from "path";
 import type { Tab } from "./Tab";
-import { SYSTEM_BLIND, SYSTEM_VISION } from "./agent/agentPrompts";
+import { SYSTEM_BLIND, SYSTEM_VISION, buildUserPrompt } from "./agent/promptBuilder";
 import {
   type AgentEvent,
   type AgentStep,
@@ -15,125 +13,27 @@ import {
   type LastReadCapture,
   type VisionDims,
 } from "./agent/agentExecute";
-import { generateResearchReportMarkdown } from "./agent/reportWriter";
-import { saveAgentReport } from "./agent/agentReportStorage";
+import { runResearchReportPipeline, type ReportSegmentStored } from "./agent/reportWriter";
+
+import { getAgentLanguageModel, writeUserConclusion, sleep } from "./agent/agentHelpers";
 
 dotenv.config({ path: join(__dirname, "../../.env") });
 
 export type { AgentStep, AgentEvent } from "./agent/agentSchema";
 export { AgentStepSchema } from "./agent/agentSchema";
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
-async function writeUserConclusion(args: {
-  goal: string;
-  historyLines: readonly string[];
-  agentDoneSummary: string;
-  model: LanguageModel | null;
-  signal: AbortSignal;
-}): Promise<string> {
-  const { goal, historyLines, agentDoneSummary, model, signal } = args;
-  if (!model) {
-    return `${agentDoneSummary}`;
-  }
-  const trace =
-    historyLines.length > 0
-      ? historyLines.join("\n")
-      : "(no recorded actions)";
-  try {
-    const { text } = await generateText({
-      model,
-      system: `Write a concise conclusion for someone who delegated a browsing task.
-2-3 sentences, friendly and clear. Mention what happened, whether the stated goal appears satisfied, any notable page or search results, and what the user might do next when relevant.
 
-Rules: casual language only — no JSON, no XML tags, no bullet lists framed as markdown if you can avoid them. Do not apologize excessively.`,
-      temperature: 0.35,
-      maxOutputTokens: 450,
-      abortSignal: signal,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: [
-                `User goal: ${goal}`,
-                "",
-                `Agent closing note (technical): ${agentDoneSummary}`,
-                "",
-                `Action trace (recent lines):`,
-                trace,
-              ].join("\n"),
-            },
-          ],
-        },
-      ],
-    });
-    const out = text.trim();
-    return out.length > 0 ? out : agentDoneSummary;
-  } catch {
-    return agentDoneSummary;
-  }
-}
-
-function getAgentLanguageModel(): LanguageModel | null {
-  const provider =
-    process.env.LLM_PROVIDER?.toLowerCase() === "anthropic"
-      ? "anthropic"
-      : "openai";
-  const modelId =
-    process.env.AGENT_MODEL ||
-    (provider === "anthropic" ? "claude-3-5-haiku-20241022" : "gpt-4o-mini");
-  if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) return null;
-    return anthropic(modelId);
-  }
-  if (!process.env.OPENAI_API_KEY) return null;
-  return openai(modelId);
-}
-
-type ReportSegmentStored = { url: string; title: string; body: string };
-
-async function runResearchReportPipeline(args: {
-  goal: string;
-  segments: ReportSegmentStored[];
-  historyLines: readonly string[];
-  emit: (event: AgentEvent) => void;
-  signal: AbortSignal;
-}): Promise<void> {
-  if (args.segments.length === 0 || args.signal.aborted) return;
-  args.emit({ type: "report_generating" });
-  try {
-    const segments = args.segments.map((s, i) => ({
-      index: i + 1,
-      url: s.url,
-      title: s.title,
-      body: s.body,
-    }));
-    const { markdown, title } = await generateResearchReportMarkdown({
-      goal: args.goal,
-      segments,
-      historyLines: args.historyLines,
-      signal: args.signal,
-    });
-    const { id, viewerUrl } = await saveAgentReport({
-      title,
-      markdown,
-    });
-    args.emit({
-      type: "report",
-      id,
-      title,
-      url: viewerUrl,
-    });
-  } catch (e) {
-    args.emit({
-      type: "report_error",
-      message: `Report writer failed: ${String(e)}`,
-    });
-  }
+interface AgentRunState {
+  historyLines: string[];
+  visionFromNow: boolean;
+  pendingPageSnapshot: string | null;
+  lastReadCapture: LastReadCapture | null;
+  reportSegments: ReportSegmentStored[];
+  executedSteps: number;
+  plannerRounds: number;
+  lastReadPageUrl: string | null;
+  isResearchGoal: boolean;
 }
 
 export class AgentRunner {
@@ -180,29 +80,21 @@ export class AgentRunner {
     const myRunId = ++this.currentRunId;
     const { signal } = this.abortController;
 
-    const historyLines: string[] = [];
-    /** After true, every planner call attaches a screenshot. */
-    let visionFromNow = false;
-    /** Injected into the next planner user message once, then cleared. */
-    let pendingPageSnapshot: string | null = null;
-    /** Last read_page capture for save_report reuse on same URL. */
-    let lastReadCapture: LastReadCapture | null = null;
-    /** Content handed off to the reporting agent via save_report. */
-    const reportSegments: ReportSegmentStored[] = [];
-    /** Counts executed browser actions (not see-only, not done). */
-    let executedSteps = 0;
-    /** Prevents infinite planning loops before first execute */
-    let plannerRounds = 0;
+    const state: AgentRunState = {
+      historyLines: [],
+      visionFromNow: false,
+      pendingPageSnapshot: null,
+      lastReadCapture: null,
+      reportSegments: [],
+      executedSteps: 0,
+      plannerRounds: 0,
+      lastReadPageUrl: null,
+      isResearchGoal: /research|analysiss|summary|report|plan|find out/i.test(goal),
+    };
     const maxPlannerRounds = maxSteps * 4 + 12;
-    /** Track visited URLs to prevent the agent re-visiting the same source. */
-    // const visitedUrls = new Set<string>();
-    /** Flag: was the last action a read_page on this URL? Prevents double-read. */
-    let lastReadPageUrl: string | null = null;
-    /** Detect if this is a research/analysis goal that requires save_report. */
-    const isResearchGoal = /research|analysiss|summary|report|plan|find out/i.test(goal);
 
     try {
-      while (executedSteps < maxSteps && plannerRounds < maxPlannerRounds) {
+      while (state.executedSteps < maxSteps && state.plannerRounds < maxPlannerRounds) {
         if (signal.aborted) {
           emit({
             type: "conclusion",
@@ -212,7 +104,7 @@ export class AgentRunner {
           return;
         }
 
-        plannerRounds += 1;
+        state.plannerRounds += 1;
 
         const tab = getActiveTab();
         if (!tab) {
@@ -228,7 +120,7 @@ export class AgentRunner {
         let imageDataUrl = "";
         let hasValidScreenshot = false;
 
-        if (visionFromNow) {
+        if (state.visionFromNow) {
           try {
             let native = await tab.screenshot();
             for (let attempt = 1; attempt <= 3 && native.isEmpty(); attempt++) {
@@ -285,85 +177,43 @@ export class AgentRunner {
           }
         }
 
-        const useImageInRequest = visionFromNow && hasValidScreenshot;
+        const useImageInRequest = state.visionFromNow && hasValidScreenshot;
 
         const recent =
-          historyLines.length > 0
-            ? `Full action history:\n${historyLines.join("\n")}`
+          state.historyLines.length > 0
+            ? `Full action history:\n${state.historyLines.join("\n")}`
             : "";
 
         const snapshotSection =
-          pendingPageSnapshot !== null
+          state.pendingPageSnapshot !== null
             ? [
                 "---",
                 "Page snapshot (included once after read_page — use exact text for quotes and summaries):",
-                pendingPageSnapshot,
+                state.pendingPageSnapshot,
                 "---",
               ].join("\n\n")
             : "";
 
-        pendingPageSnapshot = null;
+        state.pendingPageSnapshot = null;
 
-        // const visitedSummary = visitedUrls.size > 0
-        //   ? `Already visited (do NOT navigate to these again): ${[...visitedUrls].join(", ")}`
-        //   : "";
-        const researchReminder = isResearchGoal
+        const researchReminder = state.isResearchGoal
           ? "REMINDER: This is a research/analysis goal. You MUST call save_report after read_page on important sources. The reporting agent has no data unless you do."
           : "";
 
-        const visionBase = useImageInRequest
-          ? `[JSON-only. Reply must start with {.]\n\n` +
-            [
-              `Goal: ${goal}`,
-              `Executed actions: ${executedSteps} / ${maxSteps}`,
-              `Planner round: ${plannerRounds}`,
-              `Page URL: ${tab.url}`,
-              `Page title: ${tab.title}`,
-              `Screenshot pixel size: ${dims!.shotW}x${dims!.shotH}`,
-              `Viewport CSS: ${dims!.viewW}x${dims!.viewH}`,
-              `click_xy must use screenshot pixel coordinates within [0, ${dims!.shotW - 1}] x [0, ${dims!.shotH - 1}].`,
-              researchReminder,
-              // visitedSummary,
-              recent,
-              snapshotSection,
-            ]
-              .filter(Boolean)
-              .join("\n\n")
-          : visionFromNow
-            ? `[JSON-only. Reply must start with {.]\n\n` +
-              [
-                `Goal: ${goal}`,
-                `Vision mode is on, but the screenshot was empty this round (tab may still be loading or not painted yet).`,
-                `Do not use click_xy, type, or scroll — you have no screenshot dimensions.`,
-                `Prefer: wait, read_page, navigate, new_tab, save_report, or done as appropriate.`,
-                `Executed actions: ${executedSteps} / ${maxSteps}`,
-                `Planner round: ${plannerRounds}`,
-                `Current tab URL: ${tab.url}`,
-                `Current tab title: ${tab.title}`,
-                researchReminder,
-                // visitedSummary,
-                recent,
-                snapshotSection,
-              ]
-                .filter(Boolean)
-                .join("\n\n")
-            : `[JSON-only. Reply must start with {.]\n\n` +
-              [
-                `Goal: ${goal}`,
-                `No screenshot this turn.`,
-                `If you must target UI with click_xy/type/scroll first respond with ONLY {"action":"see"}`,
-                `Otherwise choose new_tab, navigate, read_page, save_report, wait, or done.`,
-                `Executed actions: ${executedSteps} / ${maxSteps}`,
-                `Planner round: ${plannerRounds}`,
-                `Current tab URL: ${tab.url}`,
-                `Current tab title: ${tab.title}`,
-                researchReminder,
-                // visitedSummary,
-                recent,
-                snapshotSection,
-              ]
-                .filter(Boolean)
-                .join("\n\n");
+        const visionBase = buildUserPrompt({
+          useImageInRequest,
+          visionFromNow: state.visionFromNow,
+          goal,
+          executedSteps: state.executedSteps,
+          maxSteps,
+          plannerRounds: state.plannerRounds,
+          url: tab.url,
+          title: tab.title,
+          dims,
+          researchReminder,
+          recent,
+          snapshotSection,
+        });
 
         const system = useImageInRequest ? SYSTEM_VISION : SYSTEM_BLIND;
         const userContent = useImageInRequest
@@ -380,8 +230,7 @@ export class AgentRunner {
             system,
             abortSignal: signal,
             maxRetries: 1,
-            temperature: 0,
-            maxOutputTokens: visionFromNow ? 12_288 : 12_288,
+            maxOutputTokens: state.visionFromNow ? 12_288 : 12_288,
             messages: [{ role: "user", content: [...userContent] }],
           });
           action = await parseOrRepairAgentStep(text, model, signal, emit);
@@ -400,7 +249,7 @@ export class AgentRunner {
         }
 
         if (action.action === "see") {
-          if (visionFromNow) {
+          if (state.visionFromNow) {
             emit({
               type: "log",
               message:
@@ -413,12 +262,12 @@ export class AgentRunner {
             message:
               "[agent] Screenshot requested; next planner round uses vision.",
           });
-          visionFromNow = true;
+          state.visionFromNow = true;
           continue;
         }
 
         if (
-          visionFromNow &&
+          state.visionFromNow &&
           !useImageInRequest &&
           (action.action === "click_xy" ||
             action.action === "type" ||
@@ -434,7 +283,7 @@ export class AgentRunner {
         }
 
         if (
-          !visionFromNow &&
+          !state.visionFromNow &&
           (action.action === "click_xy" ||
             action.action === "type" ||
             action.action === "press_enter" ||
@@ -467,16 +316,16 @@ export class AgentRunner {
         // ── Runtime guard: block a second read_page on the same URL ─────────
         if (action.action === "read_page") {
           const tab = getActiveTab();
-          if (tab && lastReadPageUrl === tab.url) {
+          if (tab && state.lastReadPageUrl === tab.url) {
             emit({ type: "log", message: `[guard] Blocked duplicate read_page on ${tab.url}.` });
-            historyLines.push(`{"action":"error","message":"You ALREADY called read_page on this URL. It is blocked. DO NOT call read_page again until you navigate somewhere else. Call save_report or done."}`);
+            state.historyLines.push(`{"action":"error","message":"You ALREADY called read_page on this URL. It is blocked. DO NOT call read_page again until you navigate somewhere else. Call save_report or done."}`);
             // Do NOT increment executedSteps so it doesn't count against budget
             continue;
           }
         }
 
         // Emit the step to the UI only if it passes all guards
-        emit({ type: "step", step: executedSteps + 1, action });
+        emit({ type: "step", step: state.executedSteps + 1, action });
 
         if (action.action === "done") {
           const summary = action.summary.trim();
@@ -484,7 +333,7 @@ export class AgentRunner {
             type: "conclusion",
             text: await writeUserConclusion({
               goal,
-              historyLines,
+              historyLines: state.historyLines,
               agentDoneSummary:
                 summary ||
                 "The agent indicated the task is finished (no extra detail).",
@@ -494,8 +343,8 @@ export class AgentRunner {
           });
           await runResearchReportPipeline({
             goal,
-            segments: reportSegments,
-            historyLines,
+            segments: state.reportSegments,
+            historyLines: state.historyLines,
             emit,
             signal,
           });
@@ -510,17 +359,17 @@ export class AgentRunner {
             dims,
             createTabAndActivate,
             emit,
-            { lastReadCapture },
+            { lastReadCapture: state.lastReadCapture },
           );
           if (execResult?.injectOncePageSnapshot) {
-            pendingPageSnapshot = execResult.injectOncePageSnapshot;
+            state.pendingPageSnapshot = execResult.injectOncePageSnapshot;
           }
           if (execResult?.lastReadCapture) {
-            lastReadCapture = execResult.lastReadCapture;
+            state.lastReadCapture = execResult.lastReadCapture;
           }
           if (execResult?.savedReportSegment) {
-            reportSegments.push(execResult.savedReportSegment);
-            lastReadCapture = null;
+            state.reportSegments.push(execResult.savedReportSegment);
+            state.lastReadCapture = null;
           }
         } catch (execErr) {
           if (signal.aborted) {
@@ -538,9 +387,9 @@ export class AgentRunner {
           });
           return;
         }
-        historyLines.push(JSON.stringify(action));
-        executedSteps += 1;
-        visionFromNow = true;
+        state.historyLines.push(JSON.stringify(action));
+        state.executedSteps += 1;
+        state.visionFromNow = true;
 
         // ── Post-execute bookkeeping ─────────────────────────────────────────
         // if (action.action === "navigate") {
@@ -550,21 +399,21 @@ export class AgentRunner {
         // }
         if (action.action === "read_page") {
           const tab = getActiveTab();
-          if (tab) lastReadPageUrl = tab.url;
+          if (tab) state.lastReadPageUrl = tab.url;
         }
 
         await sleep(350);
       }
 
-      if (executedSteps >= maxSteps) {
+      if (state.executedSteps >= maxSteps) {
         emit({
           type: "conclusion",
           text: `Ran out of allowed actions (${maxSteps} steps) before the agent signaled completion. Increase the limit or shorten the goal.`,
         });
         await runResearchReportPipeline({
           goal,
-          segments: reportSegments,
-          historyLines,
+          segments: state.reportSegments,
+          historyLines: state.historyLines,
           emit,
           signal,
         });
@@ -576,8 +425,8 @@ export class AgentRunner {
         });
         await runResearchReportPipeline({
           goal,
-          segments: reportSegments,
-          historyLines,
+          segments: state.reportSegments,
+          historyLines: state.historyLines,
           emit,
           signal,
         });

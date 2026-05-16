@@ -38,6 +38,7 @@ if (process.contextIsolated) {
     console.error(error);
   }
 } else {
+  // @ts-ignore
   window.electron = electronAPI;
   // @ts-ignore
   window.miniAPI = miniAPI;

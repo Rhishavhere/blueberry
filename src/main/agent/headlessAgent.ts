@@ -1,8 +1,6 @@
-import { generateText, type LanguageModel } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
 import type { Tab } from "../Tab";
-import { SYSTEM_BLIND } from "./agentPrompts";
+import { SYSTEM_BLIND, buildHeadlessPrompt } from "./promptBuilder";
 import {
   type AgentEvent,
   type AgentStep,
@@ -14,79 +12,9 @@ import {
 } from "./agentExecute";
 import { generateResearchReportMarkdown } from "./reportWriter";
 import { saveAgentReport } from "./agentReportStorage";
-
-function getAgentLanguageModel(): LanguageModel | null {
-  const provider =
-    process.env.LLM_PROVIDER?.toLowerCase() === "anthropic"
-      ? "anthropic"
-      : "openai";
-  const modelId =
-    process.env.AGENT_MODEL ||
-    (provider === "anthropic" ? "claude-3-5-haiku-20241022" : "gpt-4o-mini");
-  if (provider === "anthropic") {
-    if (!process.env.ANTHROPIC_API_KEY) return null;
-    return anthropic(modelId);
-  }
-  if (!process.env.OPENAI_API_KEY) return null;
-  return openai(modelId);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { getAgentLanguageModel, writeUserConclusion, sleep } from "./agentHelpers";
 
 type ReportSegmentStored = { url: string; title: string; body: string };
-
-async function writeUserConclusion(args: {
-  goal: string;
-  historyLines: readonly string[];
-  agentDoneSummary: string;
-  model: LanguageModel | null;
-  signal: AbortSignal;
-}): Promise<string> {
-  const { goal, historyLines, agentDoneSummary, model, signal } = args;
-  if (!model) {
-    return `${agentDoneSummary}`;
-  }
-  const trace =
-    historyLines.length > 0
-      ? historyLines.join("\n")
-      : "(no recorded actions)";
-  try {
-    const { text } = await generateText({
-      model,
-      system: `Write a really concise conclusion for someone who delegated a browsing task.
-1-2 sentences, friendly and clear. Mention what happened, whether the stated goal appears satisfied, any notable page or search results, and what the user might do next when relevant.
-
-Rules: casual language only — no JSON, no XML tags, no bullet lists framed as markdown if you can avoid them. Do not apologize excessively.`,
-      temperature: 0.35,
-      maxOutputTokens: 450,
-      abortSignal: signal,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: [
-                `User goal: ${goal}`,
-                "",
-                `Agent closing note: ${agentDoneSummary}`,
-                "",
-                `Action trace (recent lines):`,
-                trace,
-              ].join("\n"),
-            },
-          ],
-        },
-      ],
-    });
-    const out = text.trim();
-    return out.length > 0 ? out : agentDoneSummary;
-  } catch {
-    return agentDoneSummary;
-  }
-}
 
 export class HeadlessAgent {
   private abortController: AbortController | null = null;
@@ -140,24 +68,16 @@ export class HeadlessAgent {
             : "";
         pendingPageSnapshot = null;
 
-        const visionBase = `[JSON-only. Reply must start with {.]\n\n` +
-          [
-            `Goal: ${goal}`,
-            `You are a fast, efficient HEADLESS text-based agent.`,
-            `Use ONLY: navigate, read_page, save_report, and done.`,
-            `CRITICAL RULES:`,
-            `- Do NOT over-research. Find the most relevant page, read it, save it, and finish.`,
-            `- You may use "save_report" a MAXIMUM of 1 to 2 times across the entire session.`,
-            `- Once you have saved 1 or 2 good pages, immediately output {"action": "done", "summary": "Finished research"}.`,
-            `Executed actions: ${executedSteps} / ${maxSteps}`,
-            `Saved report segments: ${reportSegments.length}`,
-            `Current tab URL: ${hiddenTab.url}`,
-            `Current tab title: ${hiddenTab.title}`,
-            recent,
-            snapshotSection,
-          ]
-            .filter(Boolean)
-            .join("\n\n");
+        const visionBase = buildHeadlessPrompt({
+          goal,
+          executedSteps,
+          maxSteps,
+          reportSegmentsLength: reportSegments.length,
+          url: hiddenTab.url,
+          title: hiddenTab.title,
+          recent,
+          snapshotSection,
+        });
 
         let action: AgentStep;
         try {
@@ -166,7 +86,6 @@ export class HeadlessAgent {
             system: SYSTEM_BLIND,
             abortSignal: signal,
             maxRetries: 1,
-            temperature: 0,
             maxOutputTokens: 8192,
             messages: [{ role: "user", content: [{ type: "text", text: visionBase }] }],
           });
