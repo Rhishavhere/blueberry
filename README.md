@@ -1,14 +1,10 @@
 <div align="center">
 
-# 🫐 Blueberry Browser
+# Blueberry Browser
 
 ### a browser where the AI can actually drive
 
-Give it a task. Watch what it does. Stop it whenever you want.
-
-[![Electron](https://img.shields.io/badge/Electron-Desktop-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+Give it a task. Watch what it does.
 
 <br />
 
