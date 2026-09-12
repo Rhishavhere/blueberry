@@ -1,285 +1,234 @@
-# Blueberry - What I Built
+<div align="center">
 
-This is the new Blueberry. Here's everything I added, how it works, and where to find it in the code.
+# 🫐 Blueberry Browser
 
----
+### a browser where the AI can actually drive
 
-## Features Added
+Give it a task. Watch what it does. Stop it whenever you want.
 
-1. [Home Page](#1-home-page)
-2. [Browser Control Agent](#2-browser-control-agent)
-3. [Redesign Agent](#3-redesign-agent)
-4. [Routines — Save & Schedule Agent Tasks](#4-routines--save--schedule-agent-tasks)
-5. [Analysis & Report Generation](#5-analysis--report-generation)
-6. [Mini Dock Mode](#6-mini-dock-mode)
-7. [Headless Agent for Mini Mode](#7-headless-agent-for-mini-mode)
-8. [Proactive Agents *(Experimental)*](#8-proactive-agents-experimental)
+[![Electron](https://img.shields.io/badge/Electron-Desktop-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
----
+<br />
 
-## 1. Home Page
+<img src="public/screenshots/home-page.png" alt="Blueberry Browser home page" width="760" />
 
-**Files:** `src/renderer/home/src/HomeApp.tsx`, `src/main/homePage.ts`, `src/preload/home.ts`
+<br />
 
-The home page is what loads when you open a new tab. It's a React app served as a `WebContentsView` inside the main window, so it has full access to Electron IPC.
+**[What is this?](#what-is-this)** · **[Give it a job](#give-it-something-meaty)** · **[Run it](#run-it-locally)** · **[Under the hood](#under-the-hood)**
 
-<img src="public/screenshots/home-page.png" width="600" />
-
-It has three tabs across the top:
-
-- **Home** — a search bar with two modes: *Search* (navigates to Google or a URL) and *Agent* (sends the query straight to the sidebar agent panel). The backdrop image gives it some character.
-- **Routines** — shows saved routines, lets you create new ones, run them, schedule them, delete them. More on this in the Routines section.
-- **Articles** — lists all saved research reports. Click one and it opens in a new tab.
-
-The `homeAPI` preload exposes a small set of IPC calls the home page needs — `navigateFromSearch`, `openSidebarWithAgent`, `toggleSidebar`, `listReports`, `openReport`. It guards every call with an `isHomePage()` check so external sites can't invoke these even if they somehow get the preload.
-
-One thing worth noting: `navigateFromSearch` goes through `home-navigate` in the main process, which re-checks that the sender is actually the home tab before doing anything. This prevents random pages from hijacking navigation via a stale preload.
+</div>
 
 ---
 
-## 2. Browser Control Agent
+## What is this?
 
-**Files:** `src/main/AgentRunner.ts`, `src/main/agent/agentExecute.ts`, `src/main/agent/agentPrompts.ts`, `src/main/agent/agentSchema.ts`, `src/main/AgentChromeOverlay.ts`, `src/renderer/sidebar/src/components/AgentPanel.tsx`
+Having an AI answer a question in a chat box is nice, but having it actually use the browser is way more interesting.
 
-This is the main feature. You give the agent a goal in plain English, it takes over the browser and gets it done.
+You give it something to do. It can open pages, move around, read stuff, type, click, open tabs, and keep going until it thinks the job is done. You can sit there and watch the steps roll in, kill the run, or jump back in yourself whenever you feel like it.
 
-<img src="public/screenshots/agent-running.png" width="600" />
 
-### How the loop works
+> Think: a browser with eyes, hands, a little bit of initiative, and way fewer excuses.
 
-The agent runs a while loop inside `AgentRunner.run()`. Each iteration:
+## Give it something meaty
 
-1. Takes a screenshot of the active tab (if vision mode is on)
-2. Builds a user message with the goal, full action history, current URL/title, and a page snapshot if a `read_page` was just done
-3. Calls the LLM and asks for a single JSON action
-4. Parses and validates the action via Zod
-5. Executes it via `agentExecute.ts`
-6. Appends to history and loops
+The little one-line tasks are fine, but they are not really the point. Blueberry gets interesting when the request has a bunch of moving parts—the sort of thing that normally ends with fifteen tabs, half-finished notes, and “I’ll come back to this later.”
 
-The loop ends when the agent returns `{"action":"done"}`, hits the step limit (60 by default), or is manually stopped.
+Try prompts like these:
 
-### Two prompt modes
+> **“I’m planning a trip to Tokyo in November. Find the best direct flight options from Bangalore, compare the trade-offs between the top three, look up where they land, and find a well-reviewed hotel near the most convenient airport. Save the important pages and give me a short plan.”**
 
-There are two system prompts — `SYSTEM_BLIND` and `SYSTEM_VISION` in `agentPrompts.ts`.
+> **“I’m deciding whether to use Linear, Height, or Jira for a five-person product team. Go through their official pricing and feature pages, figure out what each one costs at that size, call out the stuff that will annoy a small team, and recommend one. Keep the sources so I can check your work.”**
 
-- **Blind mode** is used until the agent calls `{"action":"see"}` for the first time. At that point, every subsequent round attaches a real screenshot and switches to `SYSTEM_VISION`.
-- **Vision mode** gives the agent access to `click_xy`, `type`, `scroll`, and `press_enter`. It also gets the screenshot dimensions so it can calculate where to click.
+> **“Read this long article, clean up the page so it is actually readable, find the original sources behind its biggest claims, and give me the version I should send to a friend who does not have ten minutes.”**
 
-The reason for two modes is cost and effectiveness. In a lot of prompts, the agent was getting lost of it actual reasoning on seeing a completely unrelated webpage screenshot.
+> **“I need to understand how this library handles authentication. Start from its docs, find the setup guide, the API reference, and any migration notes. Tell me the shortest path to get it working in an existing app, plus the gotchas that will probably waste my afternoon.”**
 
-### JSON repair
+> **“Every weekday morning, check these competitors for new product launches, pricing changes, or big announcements. Save the useful sources, and leave me a quick briefing if anything actually changed.”**
 
-LLMs sometimes respond with prose or half-formed JSON even when you explicitly ask for pure JSON. `parseOrRepairAgentStep` tries to parse the output first, and if that fails, fires a second LLM call with `COERCE_SYSTEM` — a minimal prompt that just says "turn this into one valid JSON action object." This keeps the agent from crashing on minor model verbosity without needing to write a complex parser.
+That is the whole reason for autonomous browsers: not another chat box that tells you where to click, but software that can take the messy middle of browser work off your plate. Blueberry is already set up for long, multi-step jobs; clearer goals and a little supervision make it much more reliable on real sites.
 
-### Click coordinate scaling
+## So how does it pull that off?
 
-Screenshots are captured at device pixel ratio resolution. The agent returns `click_xy` coordinates in screenshot pixel space. Before sending the actual input event, `agentExecute.ts` scales them to CSS viewport coordinates:
+### ⚡ Tell it what to do
 
-```
-xCss = (xImg / shotW) * viewW
-```
+The Agent tab in the sidebar is the main thing. Drop in a goal like:
 
-Then `Tab.clickAtCss()` sends real `mouseDown`/`mouseUp` input events — not DOM-simulated clicks — which matters for sites that use pointer event listeners instead of click handlers.
+> “Open Hacker News, find the top post about AI, and tell me why people care.”
 
-### Typing into React inputs
+The agent works one move at a time. It gets the current page, chooses an action, does it, then figures out the next move. You get a normal step list instead of some mysterious spinner pretending nothing is happening.
 
-Normal `element.value = "..."` doesn't trigger React state updates because React intercepts the setter. The agent uses a custom injected script (`buildTypeIntoActiveElementScript`) that uses the internal property descriptor setter and fires `input` + `change` events, so React picks up the change correctly. Handles `<input>`, `<textarea>`, and `contenteditable` elements.
+<p align="center">
+  <img src="public/screenshots/agent-running.png" alt="Blueberry agent running in the sidebar" width="700" />
+</p>
 
-### The glow overlay
+It can currently:
 
-While the agent is running, `AgentChromeOverlay` adds an animated orange border around the content area. It's a separate `WebContentsView` sitting above the tab views in the z-order. Key detail: it uses `setIgnoreMouseEvents(true, { forward: true })` so all clicks still pass through to the actual tab underneath — the border is purely visual.
+| | |
+| --- | --- |
+| **Open things** | Navigate to a URL or spin up a new tab. |
+| **Look around** | Take a screenshot of the current page when visual context matters. |
+| **Use the page** | Click, type, scroll, and press Enter in the active tab. |
+| **Read the page** | Pull out visible page text when it needs actual details. |
+| **Wrap up** | Give you a plain-English summary when it is finished. |
 
-### The sidebar Agent panel
+### 🎨 Make ugly pages less annoying
 
-The sidebar's Agent rail (`AgentPanel.tsx`) shows:
-- The current goal in a request card
-- A step log with human-readable labels (e.g. "Opened google.com", "Read page text from the tab")
-- A conclusion card once the agent finishes with a **Save** button to turn the run into a Routine
-- Report links if a research report was generated
-- A collapsible technical log for debugging
-- `@mention` autocomplete for saved routines in the composer
+There is a Redesign mode for when a page is technically useful but visually cursed.
 
----
+Tell it to clean up a cluttered article, make something easier to read, pull attention to a section, or generally calm the page down. It generates a one-off DOM/CSS change and applies it right there in the tab.
 
-## 3. Redesign Agent
+Reload the page and the change is gone. No permanent weirdness.
 
-**Files:** `src/main/agent/mutateRunner.ts`, `src/renderer/sidebar/src/components/AgentPanel.tsx` (Redesign toggle)
+<p align="center">
+  <img src="public/screenshots/redesign-agent.png" alt="Blueberry redesign mode" width="700" />
+</p>
 
-Separate from the browser agent. This one is simpler — you describe what you want changed on the current page, and it generates JavaScript that mutates the live DOM in place.
+### ↻ Save a task, run it again
 
-<img src="public/screenshots/redesign-agent.png" width="600" />
+If a task works well, save it as a routine. Give it a short name and call it later with `@routine_name` from the agent box.
 
-The flow:
-1. User toggles **Redesign** mode in the sidebar header and types an instruction
-2. `mutateRun` IPC call fires
-3. `mutateRunner.ts` grabs the current page's full HTML and visible text
-4. Sends both plus the instruction to the LLM with `REDESIGN_SYSTEM` — a prompt that says "output only JS, no markdown fences, safe to run multiple times, no fetch/network calls"
-5. The JS is wrapped in an async IIFE and executed via `tab.runJs()`
-6. The script's return value is shown as the result message in the sidebar
+You can also put routines on an hourly, daily, or weekly schedule. They run through the headless agent while the app is open, so Blueberry can handle the boring repeat stuff without opening a whole browser window in your face.
 
-The prompt is strict about sticking to pure DOM/CSS changes — hide elements, restyle things, inject a readable view, translate labels, etc. Scripts tag their changes with `data-blueberry-redesign` attributes so repeated runs can clean up their own previous state.
+<p align="center">
+  <img src="public/screenshots/routine-list.png" alt="Blueberry routines" width="700" />
+</p>
 
-This is intentionally a single-shot call rather than an agent loop. Redesigns don't need iterative browsing — just one smart code generation step.
+### 📝 Reports, when a task deserves one
 
----
+Sometimes you do not just want “done.” You want the useful bits saved somewhere you can come back to.
 
-## 4. Routines — Save & Schedule Agent Tasks
+While it is browsing, the agent can save source pages. If it has saved anything, a separate report-writing pass can turn those captures into a proper Markdown report. The report lives on your machine, shows up in **Articles**, and has a reader with a table of contents plus PDF export.
 
-**Files:** `src/main/agent/routineStorage.ts`, `src/main/agent/scheduler.ts`, `src/renderer/home/src/HomeApp.tsx` (Routines tab), `src/renderer/sidebar/src/components/AgentPanel.tsx` (@mention), `src/main/EventManager.ts` (IPC handlers)
+That is great for comparisons, research, planning, and recurring briefings. For everything else, the agent can just do the task and get out of the way.
 
-Once an agent run succeeds, you can save the goal as a named Routine. Routines are stored agent prompts with a short name you can reference later with `@`.
+<p align="center">
+  <img src="public/screenshots/report-viewer.png" alt="Blueberry report reader" width="700" />
+</p>
 
-<img src="public/screenshots/routine-list.png" width="600" />
+### ◌ Mini Mode
 
-### Saving and running
+Mini Mode is the tiny floating version of Blueberry. Handy when you want to search something, kick off a quick agent task, and keep your actual desktop usable.
 
-After a successful agent run the sidebar shows a **Save** button next to "All set!". You give it a short name (e.g. `linkedin_update`) and it's stored to disk at `userData/blewberry/routines.json`.
+It can expand into a little browser view, or show the agent’s live steps and a tiny preview of the page it is working on. Hit the expand button when you want to bring the result back to the main window.
 
-From then on, you can type `@linkedin_update` in any agent composer and the sidebar expands it to the full original query before sending. The `@mention` dropdown fires live as you type, filters matching routines, and inserts on click.
+<p align="center">
+  <img src="public/screenshots/mini-collapsed.png" alt="Blueberry Mini Mode dock" width="460" />
+</p>
 
-### Scheduling
+## Under the hood
 
-From the Routines tab on the home page, each routine has a clock button that opens a schedule editor inline. Options:
+Blueberry is Electron + React + TypeScript. The browser itself is made from Electron `WebContentsView`s: tabs are separate from the top bar, sidebar, Home screen, report reader, and Mini Mode. It makes the app feel more like a browser than a website pretending to be one.
 
-- **Hourly** — runs every hour
-- **Daily** — pick a time (HH:MM)
-- **Weekly** — pick a day and time
+The normal browser agent is deliberately built around a small list of actions instead of “LLM, here is arbitrary JavaScript, good luck.” It can navigate, read, use screenshots, click/type/scroll, save source material, and finish. Those actions are checked with Zod before they run.
 
-The `nextRun` timestamp is calculated and stored on the routine. `RoutineScheduler` in `scheduler.ts` polls every 60 seconds, checks if any routine's `nextRun` has passed, fires a `HeadlessAgent` for it, then recalculates the next run time. The scheduler starts automatically in `index.ts` on app launch and runs completely silently.
+There are a few different agent-shaped pieces in here:
 
-Routine data shape (in `routineStorage.ts`):
-
-```typescript
-interface Routine {
-  id: string
-  name: string
-  query: string
-  createdAt: string
-  schedule?: { type: "hourly" | "daily" | "weekly", time?, dayOfWeek?, enabled }
-  lastRun?: string
-  nextRun?: string
-}
+```text
+Your goal
+   │
+   ├─ visible browser agent ── drives the active tab and streams steps to the sidebar
+   ├─ headless agent ───────── handles Mini Mode and scheduled routines
+   └─ report writer ────────── only joins in when saved sources should become a report
 ```
 
----
+That last one matters: the report writer is a specialist, not the boss of the app.
 
-## 5. Analysis & Report Generation
+### Where stuff lives
 
-**Files:** `src/main/agent/reportWriter.ts`, `src/main/agent/agentReportStorage.ts`, `src/renderer/report/src/ReportApp.tsx`, `src/main/reportPage.ts`
-
-When the agent is doing research-style tasks, it calls `save_report` on important pages. Each call stores the current tab's text into a `reportSegments` array in the runner. After the agent finishes, the report pipeline kicks off automatically:
-
-<img src="public/screenshots/report-viewer.png" width="600" />
-
-```
-reportSegments → generateResearchReportMarkdown() → saveAgentReport() → new tab opens
-```
-
-### The report writer
-
-`generateResearchReportMarkdown()` sends all the saved page bodies plus the original goal to the LLM with a detailed `REPORT_SYSTEM` prompt. That prompt tells the model to produce one clean Markdown document — proper heading hierarchy, paragraph breaks, bullet lists, tables where useful, blockquotes for direct excerpts, and a Sources section at the end. Temperature is set to 0.35 so it's grounded but not robotically dry.
-
-The title is extracted from the first H1 heading in the output.
-
-### Storage
-
-Reports are saved as JSON files in `userData/agent-reports/<uuid>.json`. They contain `id`, `title`, `markdown`, and `createdAt`. The report viewer gets the ID from the URL query string and loads the file via IPC. No server involved — everything is local.
-
-### The report viewer
-
-`ReportApp.tsx` is a proper reading experience:
-- Sticky table of contents built by parsing the markdown headings, with `IntersectionObserver` tracking the active section as you scroll
-- Drop-cap on the first paragraph via CSS `::first-letter`
-- Animated H2 headings that slide in on load
-- Estimated read time (word count / 200)
-- PDF export via Electron's `printToPDF` — hides chrome elements with `@media print` CSS
-- Back-to-top button that appears after 600px of scroll
-- The report lives at a special internal URL (`/report/?id=...`) that only the report page preload can load data from
-
----
-
-## 6. Mini Dock Mode
-
-**Files:** `src/main/MiniWindow.ts`, `src/renderer/mini/src/MiniApp.tsx`, `src/preload/mini.ts`
-
-Mini Mode is a compact floating window (800×60px) that sits at the top of your screen. Hit "Go Mini" in the topbar and the main window hides — the mini pill takes over.
-
-<img src="public/screenshots/mini-collapsed.png" width="400" />
-
-The pill has:
-- A text input for search or agent queries
-- A sparkle icon to toggle agent mode
-- An expand-to-main button (brings back the full browser; if a URL was loaded in the mini webview it transfers over)
-- A close/quit button
-
-### Search mode
-
-In search mode, submitting expands the window to 600px tall and loads the result in an embedded `<webview>` tag. The webview URL syncs back to the input so you can see where you are. Clicking expand-to-main transfers the current webview URL to a tab in the main window.
-
-### Agent mode
-
-In agent mode, the window expands to 300px and shows the headless agent's live log while it works. Once done, a conclusion + "Open Full Report" button appears. Tapping it switches to a full report view rendered inline via `MiniReport.tsx` — same styling as the main report viewer, just embedded in the mini window.
-
-
----
-
-## 7. Headless Agent for Mini Mode
-
-**Files:** `src/main/agent/headlessAgent.ts`
-
-The main `AgentRunner` depends on a visible browser tab with real screenshots. That doesn't work in Mini Mode — there's no visible tab to capture, and showing one would defeat the whole point of the compact HUD.
-
-`HeadlessAgent` is a stripped-down agent that uses only text-based actions: `navigate`, `read_page`, `save_report`, and `done`. No screenshots, no clicking.
-
-<img src="public/screenshots/min-expanded.png" width="400" />
-
-
-Key differences from the main agent:
-- Runs on a hidden `Tab` (`about:blank`) that's created in memory but never added to any window
-- Only uses `SYSTEM_BLIND` — vision mode is never triggered
-- Visual actions (`see`, `click_xy`, `type`, `scroll`, `press_enter`) are silently skipped rather than erroring
-- Default max 10 steps — fast and focused
-- The prompt strongly discourages over-research: save 1–2 pages max, then call done
-
-The hidden tab is created at the start of the run and destroyed in a `finally` block regardless of outcome.
-
-The scheduler uses this same `HeadlessAgent` for all scheduled routine runs — a routine fires silently in the background, generates a report if applicable, and you'll find it in Articles next time you open the home page.
-
----
-
-## 8. Proactive Agents *(Experimental)*
-
-**Branch:** `proactive`
-
-This one lives in Mini Mode. Instead of you asking the agent for help, the agent watches what you're doing and offers help on its own.
-
-It periodically takes a screenshot of your entire screen — not just the browser, your whole desktop. Whatever you have open: Notion, a spreadsheet, Figma, a code editor, anything. It sends that screenshot to the LLM with context about what's visible and asks "does this person look like they need help with something?"
-
-If the model identifies something actionable, a small suggestion surfaces in the mini dock — something like "Looks like you're building a budget sheet, want me to pull current pricing for those items?" You can dismiss it or hit yes. If you say yes, it spins up the `HeadlessAgent` on that exact task and runs it in the background, same as a manual agent run.
-
-The key design decision here is that it's **opt-in per suggestion** — the agent notices and offers, but never acts without you confirming. The screen capture happens on a timer but the agent only speaks up when it has something genuinely useful to say, not on every tick.
-
-
-
----
-
-## Quick File Reference
-
-| What you're looking for | Where it is |
-|---|---|
-| Agent loop | `src/main/AgentRunner.ts` |
-| What each action actually does | `src/main/agent/agentExecute.ts` |
-| System prompts (BLIND / VISION / COERCE) | `src/main/agent/agentPrompts.ts` |
-| Action schema + JSON repair | `src/main/agent/agentSchema.ts` |
-| Report generation LLM call | `src/main/agent/reportWriter.ts` |
-| Report file storage (read/write/list) | `src/main/agent/agentReportStorage.ts` |
-| Page mutation / Redesign | `src/main/agent/mutateRunner.ts` |
-| Routine storage | `src/main/agent/routineStorage.ts` |
-| Background scheduler | `src/main/agent/scheduler.ts` |
-| Headless agent | `src/main/agent/headlessAgent.ts` |
-| All IPC handlers wired up | `src/main/EventManager.ts` |
-| Glow overlay during agent runs | `src/main/AgentChromeOverlay.ts` |
+| What | Where to look |
+| --- | --- |
+| App/window setup | `src/main/index.ts`, `src/main/Window.ts` |
+| Tabs | `src/main/Tab.ts` |
+| IPC wiring | `src/main/EventManager.ts` |
+| Main browser agent | `src/main/AgentRunner.ts` |
+| Agent actions | `src/main/agent/agentSchema.ts`, `src/main/agent/agentExecute.ts` |
+| Prompts | `src/main/agent/promptBuilder.ts` |
+| Reports | `src/main/agent/reportWriter.ts`, `src/main/agent/agentReportStorage.ts` |
+| Routines/schedules | `src/main/agent/routineStorage.ts`, `src/main/agent/scheduler.ts` |
+| Mini Mode | `src/main/MiniWindow.ts`, `src/renderer/mini/` |
 | Sidebar agent UI | `src/renderer/sidebar/src/components/AgentPanel.tsx` |
-| Report viewer UI | `src/renderer/report/src/ReportApp.tsx` |
-| Home page UI | `src/renderer/home/src/HomeApp.tsx` |
-| Mini mode UI | `src/renderer/mini/src/MiniApp.tsx` |
+
+Reports and routines are local files under Electron’s user-data directory:
+
+- Reports: `userData/agent-reports/<uuid>.json`
+- Routines: `userData/blewberry/routines.json`
+
+There is no Blueberry account, cloud sync, collaboration layer, or semantic-history feature in this branch.
+
+## Run it locally
+
+You will need Node.js 22+ and either an Anthropic or OpenAI API key.
+
+```bash
+git clone https://github.com/Rhishavhere/blueberry
+cd blueberry
+corepack enable
+pnpm install
+cp .env.example .env
+```
+
+Put a provider and key in `.env`.
+
+```dotenv
+# Anthropic
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_key_here
+AGENT_MODEL=claude-haiku-4-5-20251001
+```
+
+Or:
+
+```dotenv
+# OpenAI
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+AGENT_MODEL=gpt-4o-mini
+```
+
+Then run it:
+
+```bash
+pnpm dev
+```
+
+`pnpm` is the preferred package manager because the repo has a `pnpm-lock.yaml`. `npm install` is fine too if that is what you use.
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Starts the app in dev mode. |
+| `pnpm typecheck` | Checks the main and renderer TypeScript projects. |
+| `pnpm lint` | Runs ESLint. |
+| `pnpm format` | Lets Prettier tidy everything up. |
+| `pnpm build` | Typechecks, then builds the app. |
+| `pnpm build:win` | Builds the Windows installer. |
+| `pnpm build:mac` / `pnpm build:linux` | Builds macOS or Linux packages. |
+
+## A quick reality check
+
+This is browser automation. That means it can get confused, pages can change, and it can absolutely make bad calls if you ask it to do something vague or high-stakes.
+
+- Watch runs that touch logged-in accounts, forms, money, publishing, or anything hard to undo.
+- Do not treat an agent summary as proof. Check the page and the sources when it matters.
+- Redesign mode runs model-generated JavaScript in the page you currently have open. Use it on pages you trust; reload to wipe its changes.
+- Scheduled routines run while Blueberry is open. They are handy, but this is not a production job queue or monitoring platform.
+- Your model provider gets the prompts, screenshots, and page excerpts needed for the job. Do not send sensitive material without understanding that provider’s policies.
+
+## Notes for people hacking on it
+
+The renderer surfaces each have their own preload entry point: top bar, sidebar, Home/report pages, Mini Mode, and the agent overlay. IPC is wired in `src/main/EventManager.ts`.
+
+Keep renderer APIs tiny. Validate requests in the main process. Be very careful about which pages get privileged capabilities. Browsers are a weird place to be casual about trust boundaries.
+
+There is also a deeper [architecture review](docs/review.md) in the repo with the rough edges, design notes, and next things worth fixing.
+
+---
+
+<div align="center">
+
+### 🫐 Blueberry Browser
+
+**A browser tab is usually where work starts. This is for helping it finish.**
+
+</div>
