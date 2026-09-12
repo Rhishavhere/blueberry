@@ -218,7 +218,7 @@ export const HomeApp: React.FC = () => {
         <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 z-10">
           <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center space-y-10">
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight">Blueberry</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">Go Blueberry</h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
                 Search the web with autonomous agents
               </p>

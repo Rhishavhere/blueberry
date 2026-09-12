@@ -112,7 +112,7 @@ export class MiniWindow {
     const bounds = this.baseWindow.getBounds();
     this.baseWindow.setBounds({
       ...bounds,
-      height: 300, // Low expanded view height
+      height: 252, // Low expanded view — compact agent panel below pill
     });
 
     this.updateBounds();

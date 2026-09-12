@@ -16,6 +16,30 @@ import { getAgentLanguageModel, writeUserConclusion, sleep } from "./agentHelper
 
 type ReportSegmentStored = { url: string; title: string; body: string };
 
+async function emitPagePreview(
+  tab: Tab,
+  emit: (event: AgentEvent) => void,
+): Promise<void> {
+  try {
+    await sleep(450);
+    let native = await tab.screenshot();
+    for (let attempt = 1; attempt <= 3 && native.isEmpty(); attempt++) {
+      await sleep(200 + attempt * 150);
+      native = await tab.screenshot();
+    }
+    if (native.isEmpty()) return;
+    const dataUrl = native.toDataURL();
+    emit({
+      type: "page_preview",
+      dataUrl,
+      url: tab.url,
+      title: tab.title,
+    });
+  } catch {
+    // Preview is best-effort for mini mode UI
+  }
+}
+
 export class HeadlessAgent {
   private abortController: AbortController | null = null;
 
@@ -151,6 +175,10 @@ export class HeadlessAgent {
         } catch (execErr) {
           emit({ type: "error", message: `execute_step_failed: ${String(execErr)}` });
           return;
+        }
+
+        if (action.action === "navigate" || action.action === "new_tab") {
+          await emitPagePreview(hiddenTab, emit);
         }
         
         historyLines.push(JSON.stringify(action));

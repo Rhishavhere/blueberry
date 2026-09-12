@@ -32,6 +32,7 @@ export type AgentStep = z.infer<typeof AgentStepSchema>;
 export type AgentEvent =
   | { type: "log"; message: string }
   | { type: "step"; step: number; action: AgentStep }
+  | { type: "page_preview"; dataUrl: string; url: string; title: string }
   | { type: "conclusion"; text: string }
   | { type: "error"; message: string }
   | { type: "finished"; reason: string }

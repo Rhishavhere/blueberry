@@ -525,6 +525,11 @@ export class EventManager {
     ipcMain.handle("headless-agent-start", async (event, goal: string) => {
       this.miniWindow.expandLow();
       const headlessTab = new Tab("headless-" + Date.now(), "about:blank");
+      const miniContentView = this.miniWindow.window.contentView;
+      miniContentView.addChildView(headlessTab.view);
+      headlessTab.view.setBounds({ x: 0, y: 0, width: 1280, height: 720 });
+      headlessTab.view.setVisible(false);
+
       this.currentHeadlessAgent = new HeadlessAgent();
       const agent = this.currentHeadlessAgent;
       const sender = event.sender;
@@ -536,6 +541,11 @@ export class EventManager {
           sender.send("headless-agent-event", agentEvent);
         }
       }).finally(() => {
+        try {
+          miniContentView.removeChildView(headlessTab.view);
+        } catch {
+          // view may already be detached
+        }
         headlessTab.destroy();
         if (this.currentHeadlessAgent === agent) {
           this.currentHeadlessAgent = null;
